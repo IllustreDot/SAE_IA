@@ -1,15 +1,13 @@
 import random as rd
 
-def data_One_Dimension():
+def data_One_Dimension(n):
     data = []
-    for i in range(100):
+    for _ in range(n):
         data.append(rd.randint(-100, 100))
     return data
 
-def data_Two_Dimension():
-    data=[]
-    for i in range(100):
-        data.append([0,0])
-        for j in range(2):
-            data[i][j]=rd.randint(-100, 100)
+def data_Two_Dimension(n):
+    data = []
+    for _ in range(n):
+        data.append([rd.randint(-100, 100), rd.randint(-100, 100)])
     return data
