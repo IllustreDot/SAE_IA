@@ -1,70 +1,83 @@
-from utils.generate import data_Two_Dimension
-from utils.visualisation import plot_2D
-from utils.visualisation import plot_2D_with_label
-from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score
-import time
 import csv
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+import matplotlib.pyplot as plt
 
-def test(sample_size,data_size,hidden_layer_sizes,max_iter,verbose=True,graph=True):
-    data = []
-    labels = []
-    for _ in range(sample_size):
-        sample_data = data_Two_Dimension(data_size)
-        data.extend(sample_data) 
-        #categorization of the data
-        for point in sample_data:
-            if point[0] >= 0 and point[1] >= 0:
-                labels.append("1")
-            elif point[0] >= 0 and point[1] <= 0:
-                labels.append("2")
-            elif point[0] <= 0 and point[1] >= 0:
-                labels.append("3")
-            else:
-                labels.append("4")
-    if (verbose):
-        print("Dataset classification")
+#load csv
+with open('src/Dataset/loan_data.csv', 'r') as file:
+    reader = csv.reader(file)
+    data = list(reader)
 
-    # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2)
-    if (verbose):
-        print("Data splitted")
+header = data[0]
+data = data[1:]
 
-    clf = MLPClassifier(hidden_layer_sizes=hidden_layer_sizes, max_iter=max_iter, verbose=verbose)
-    if (verbose):
-        print("Model up")
+x=[]
+y=[]
 
-    clf.fit(x_train, y_train)
+scaler = StandardScaler()
 
-    if (verbose):
-        print("Model trained")
+for row in data:
+    x.append(row[:-1])
+    y.append(row[-1])
 
-    y_pred = clf.predict(x_test)
-    acc = accuracy_score(y_test, y_pred)
-    if (verbose):
-        print("Accuracy: ", acc)
-    if (graph):
-        plot_2D_with_label(x_test, y_pred)
-    return acc
+x_encoded = []
 
-current_iteration=0
-total_combinations=5*5*3
-results=[]
-for data_size in range(20,101,20):
-    for sample_size in range(20,101,20):
-        for hidden_layer_sizes in range(2,7,2):
-            print(int((current_iteration / total_combinations) * 100),"%")
-            results.append([sample_size,data_size,hidden_layer_sizes])
-            s=time.time()
-            acc=test(sample_size,data_size,(hidden_layer_sizes,hidden_layer_sizes),100000,verbose=False,graph=False)
-            e=time.time()
-            results[-1].append(e-s)
-            results[-1].append(acc)
-            current_iteration+=1
+for col in zip(*x):
+    try:
+        float(col[0])
+        x_encoded.append(list(map(float, col)))
+    except ValueError:
+        le = LabelEncoder()
+        x_encoded.append(le.fit_transform(col))
 
-with open('results.csv', 'w', newline='') as file:
-    writer = csv.writer(file)
-    
-    writer.writerow(["sample_size","data_size","hidden_layer_sizes","time","accuracy"])
-    writer.writerows(results)
+x = np.array(x_encoded).T
+y = LabelEncoder().fit_transform(y)  
+
+x = scaler.fit_transform(x)
+
+x_train, x_val, y_train, y_val = train_test_split(x, y, test_size=0.2, random_state=5)
+
+MLPClassifier = MLPClassifier(batch_size=32, nesterovs_momentum=False,solver="sgd",hidden_layer_sizes=(124))
+
+train_acc=[]
+val_acc=[]
+
+epochs = 5
+for epoch in range(epochs):
+    print(epoch)
+    MLPClassifier.fit(x_train, y_train)
+    test = accuracy_score(y_train, MLPClassifier.predict(x_train))
+    train_acc.append(test)
+    val = accuracy_score(y_val, MLPClassifier.predict(x_val))
+    val_acc.append(val)
+    print("Difference: ", test - val)
+    print("Byase Error: ", 1 - val)
+
+print(MLPClassifier.get_params())
+
+plt.figure(figsize=(10, 6))
+plt.ylim(0, 1)
+plt.plot(range(1, epochs + 1), train_acc, label='Training Accuracy')
+plt.plot(range(1, epochs + 1), val_acc, label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training vs. Validation Accuracy')
+plt.legend()
+
+y_pred = MLPClassifier.predict(x)
+conf_mat=confusion_matrix(y, y_pred)
+plt.matshow(conf_mat, cmap='Blues')
+
+plt.colorbar() 
+class_labels = ['Refusé', 'Accepté'] 
+plt.xticks(ticks=np.arange(len(class_labels)), labels=class_labels)
+plt.yticks(ticks=np.arange(len(class_labels)), labels=class_labels)
+
+for i in range(conf_mat.shape[0]): 
+    for j in range(conf_mat.shape[1]):  
+        plt.text(j, i, str(conf_mat[i, j]), ha='center', va='center', color='black')
+
+plt.show()
