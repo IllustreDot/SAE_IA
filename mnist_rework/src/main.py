@@ -112,7 +112,7 @@ for layers in layer_configs:
     
     print(f"Layers: {layers}, Alpha: {alpha_number}, Learning Rate: {learning_rate_init_number}, Random State: {random_state_number}, MSE: {mse:.4f}")
     with open(output_file, "a") as f:
-        f.write(f"{len(layers)},{layers}{mse}\n")
+        f.write(f"{len(layers)},{layers},{mse}\n")
 
 # ================================================================
 
