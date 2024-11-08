@@ -1,6 +1,6 @@
 # building of a MLP model for the MNIST dataset
 # author: 37b7
-# created: 6 Nov 2024
+# created: 8 Nov 2024
 
 # train or display
 mode = "train" 
@@ -16,7 +16,7 @@ import numpy as np
 import os
 
 #to extract data and visualy see the most fitting parmeters
-from sklearn.metrics import accuracy_score, confusion_matrix, mean_squared_error
+from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 
 # model used
 from sklearn.neural_network import MLPClassifier
@@ -77,7 +77,7 @@ output_file = "../rsc/output/collected_data_classification.csv"
 if mode == "train":
     if not os.path.exists(output_file):
         with open(output_file, "w") as f:
-            f.write("layers,neurons,mse\n")
+            f.write("layers,neurons,accuracy,mse\n")
         print("Output file:", output_file, " created")
     else:
         print("Output file:", output_file, " exists")
@@ -104,7 +104,10 @@ if mode == "train":
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
-        mse = mean_squared_error(y_test, model.predict_proba(X_test))
+        
+        # For log_loss, use predict_proba instead of predict
+        probas = model.predict_proba(X_test)
+        mse = log_loss(y_test, probas)
         
         # Save best configuration
         if accuracy > best_accuracy:
@@ -160,18 +163,25 @@ if mode == "process_best":
         random_state=random_state_number,
         verbose=True
     )
+    
     best_model.fit(X_train, y_train)
     y_best_pred = best_model.predict(X_test)
-
-    # Separate data by the number of layers
-    data_1_layer = data[data["layers"] == 1]
-    data_2_layers = data[data["layers"] == 2]
-    data_3_layers = data[data["layers"] == 3]
+    accuracy = accuracy_score(y_test, y_best_pred)
+    
+    # For log_loss, use predict_proba instead of predict
+    probas = best_model.predict_proba(X_test)
+    mse = log_loss(y_test, probas)
 
 # ================================================================
 
 # Plotting Accuracy and MSE for Different Layer Configurations ===
 if mode == "display":
+    # Separate data by the number of layers
+    data_1_layer = data[data["layers"] == 1]
+    data_2_layers = data[data["layers"] == 2]
+    data_3_layers = data[data["layers"] == 3]
+
+    
     plt.figure(figsize=(15, 5))
 
     # Plot for 1-layer configurations
@@ -224,6 +234,7 @@ if mode == "display":
     plt.grid(True)
     plt.show()
 
+if mode == "process_best":
     # Confusion Matrix for Best Model
     conf_matrix = confusion_matrix(y_test, y_best_pred)
     plt.figure(figsize=(10, 8))

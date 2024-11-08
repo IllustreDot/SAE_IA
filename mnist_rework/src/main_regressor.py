@@ -2,7 +2,7 @@
 # author: 37b7
 # created: 6 Nov 2024
 
-# train or display
+# train or display or process_best
 mode = "display" 
 
 # Import =================================
@@ -72,7 +72,7 @@ best_config = {}
 
 # init of collected data file ====================================
 
-output_file = "../rsc/output/collected_data.csv"
+output_file = "../rsc/output/collected_data_regressor.csv"
 # si le fichier n'existe pas, on le crée
 if mode == "train":
     if not os.path.exists(output_file):
@@ -197,6 +197,7 @@ if mode == "display" :
     plt.grid(True)
     plt.show()
 
+if mode == "process_best":
     # Confusion Matrix
     conf_matrix = confusion_matrix(y_test, np.argmax(y_best_pred, axis=1))
     plt.figure(figsize=(10, 8))
