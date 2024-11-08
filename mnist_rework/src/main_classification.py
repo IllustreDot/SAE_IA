@@ -48,7 +48,7 @@ def generate_layer_configurations(hl_nb_dict_of_dict):
 
 # ================================================================
 
-# Variable init for MLPRegressor parameter finder for MNIST ======
+# Variable init for MLPClassifier parameter finder for MNIST ======
 
 hl_nb_dict_of_dict = {
     "1": {"1": 784},
@@ -65,7 +65,7 @@ activation_function = 'relu'
 max_iter_number = 100
 solvertype = 'sgd'
 
-best_mse= float('inf')
+best_accuracy = 0
 best_config = {}
 
 # ================================================================
