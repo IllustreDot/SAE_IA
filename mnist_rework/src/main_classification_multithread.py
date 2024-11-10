@@ -75,6 +75,7 @@ best_config = {}
 # init of collected data file ====================================
 
 output_file = "../rsc/output/collected_data_classification.csv"
+best_output_file = "../rsc/output/best_collected_data_classification.csv"
 # si le fichier n'existe pas, on le crée
 if mode == "train":
     if not os.path.exists(output_file):
@@ -83,14 +84,13 @@ if mode == "train":
         print("Output file:", output_file, " created")
     else:
         print("Output file:", output_file, " exists")
-
-    best_output_file = "../rsc/output/best_collected_data_classification.csv"
+if submode == "process_best":
     if not os.path.exists(best_output_file):
         with open(best_output_file, "w") as f:
             f.write("layers,neurons,alpha,learning_rate_init,random_state,accuracy,mse,y_best_pred\n")
-            print("Best Output file:", output_file, " created")
+            print("Best Output file:", best_output_file, " created")
     else:
-        print("Best Output file:", output_file, " exists")
+        print("Best Output file:", best_output_file, " exists")
 
 # ================================================================
 
