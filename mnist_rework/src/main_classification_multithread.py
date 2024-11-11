@@ -13,6 +13,7 @@ submode = "process_best"
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from itertools import product
+import seaborn as sns
 import pandas as pd
 import numpy as np
 import os
@@ -64,7 +65,7 @@ learning_rate_init_number = 0.001
 alpha_number = 1e-4
 random_state_number = 1
 activation_function = 'relu'
-max_iter_number = 100
+max_iter_number = 1000
 solvertype = 'sgd'
 
 best_accuracy = 0
@@ -192,11 +193,6 @@ if mode == "display":
     data.columns = ["layers", "neurons", "accuracy", "mse"]
     data["neurons"] = data["neurons"].apply(eval)
 
-if submode == "process_best":
-    best_data = pd.read_csv(best_output_file)
-    best_data.columns = ["layers", "neurons", "alpha", "learning_rate_init", "random_state", "accuracy", "mse", "y_best_pred"]
-    best_data["neurons"] = best_data["neurons"].apply(eval)
-
 # ================================================================
 
 # Plotting Accuracy and MSE for Different Layer Configurations ===
@@ -231,7 +227,7 @@ if mode == "display":
 
 if submode == "process_best":
     # Confusion Matrix for Best Model
-    conf_matrix = confusion_matrix(y_test, best_data["y_best_pred"])
+    conf_matrix = confusion_matrix(y_test, y_best_pred)
     plt.figure(figsize=(10, 8))
     sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", cbar=False)
     plt.title("Confusion Matrix")
