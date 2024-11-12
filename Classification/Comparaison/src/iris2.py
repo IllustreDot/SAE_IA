@@ -17,7 +17,7 @@ print(len(X_train))
 model = MLPClassifier(
     hidden_layer_sizes=(60, ),       
     solver='sgd',                    
-    max_iter=1000,                   
+    max_iter=1800,                   
     learning_rate_init=0.01,         
     momentum=0.9,                              
     tol=1e-4                         
@@ -33,7 +33,7 @@ print(f'Précision du modèle : {accuracy * 100:.2f}%')
 plot_learning_curve(model, X_train, y_train)
 
 # 2. Validation Curve (ici on teste l'impact de la taille des couches cachées)
-param_range = [5, 10, 20, 30, 40, 50, 60, 70, 80 ,90, 100, 110, 120, 130, 140, 150, 200, 300]
+param_range = [5, 10, 20, 30, 40, 50, 60, 70, 80 ,90, 100, 150, 200, 300]
 plot_validation_curve(model, X_train, y_train, param_name="hidden_layer_sizes", param_range=param_range)
 
 # 3. Matrice de Confusion
@@ -44,4 +44,4 @@ plot_roc_curve(model, X_test, y_test)
 
 # 5. Projection PCA pour visualiser la séparation des classes
 
-plot_pca(X_train, y_train)
+plot_pca(X_test, y_test)
