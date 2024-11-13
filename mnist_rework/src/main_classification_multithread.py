@@ -4,8 +4,8 @@
 
 # train or display or not
 mode = "qsd"
-# process_best or not
-submode = "process_best"
+# process_best or showheat or not
+submode = "showheat"
 
 # Import =========================================================
 
@@ -19,6 +19,7 @@ import numpy as np
 import os
 
 #to extract data and visualy see the most fitting parmeters
+from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 
 # model used
@@ -234,5 +235,16 @@ if submode == "process_best":
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.show()
-
+    
+if submode == "showheat" :
+    pca = PCA(n_components=2)
+    X_pca = pca.fit_transform(X_test)
+    
+    plt.figure(figsize=(100, 80))
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y_test, cmap='Spectral', edgecolor='k', s=50)
+    plt.xlabel('PCA 1')
+    plt.ylabel('PCA 2')
+    plt.title('PCA Projection')
+    plt.colorbar()
+    plt.show()
 # ================================================================
