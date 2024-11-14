@@ -6,6 +6,7 @@
 
 # to use for next import
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 import matplotlib.pyplot as plt
 from itertools import product
 import seaborn as sns
@@ -122,9 +123,9 @@ def mlp():
 
 
 def visualize_feature_maps(model, image, layer_names=["conv1", "conv2"]):
-    """ Visualize the output feature maps of the specified layers for a given input image."""
     model.eval()
-    
+    if image.ndim == 3:
+        image = image.unsqueeze(0)
     with torch.no_grad():
         x = image
         for name, layer in model.named_children():
@@ -137,11 +138,11 @@ def visualize_feature_maps(model, image, layer_names=["conv1", "conv2"]):
                 for i in range(grid_size * grid_size):
                     ax = axs[i // grid_size, i % grid_size]
                     if i < num_feature_maps:
-                        ax.imshow(x[0, i].cpu().numpy(), cmap='viridis')
+                        feature_map = x[0, i].cpu().numpy()
+                        ax.imshow(feature_map, cmap='viridis')
                     ax.axis('off')
-                    
+                plt.tight_layout()
                 plt.show()
-                
     model.train()
 
 class CNNModel(nn.Module):
