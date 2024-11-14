@@ -59,7 +59,7 @@ learning_rate_init_number = 0.001
 alpha_number = 1e-4
 random_state_number = 1
 activation_function = 'relu'
-max_iter_number = 1000
+max_iter_number = 100
 solvertype = 'adam'
 
 # ================================================================
@@ -69,7 +69,7 @@ solvertype = 'adam'
 output_file = "../rsc/output/collected_mlp_cnn.csv"
 if not os.path.exists(output_file):
     with open(output_file, "w") as f:
-        f.write("layers,neurons,accuracy,mse\n")
+        f.write("type,accuracy,mse,conf_matrix,accuracies,losses\n")
     print("Output file:", output_file, " created")
 else:
     print("Output file:", output_file, " exists")
@@ -86,16 +86,15 @@ def mlp():
         alpha=alpha_number,
         solver=solvertype,
         random_state=random_state_number,
-        learning_rate_init=learning_rate_init_number,
-        verbose=True
+        learning_rate_init=learning_rate_init_number
     )
     
     mlp_accuracies = []
     mlp_losses = []
     
     for epoch in range(max_iter_number):
-        # add for to make partial fit work properly
-        model.partial_fit(X_train, y_train, classes=np.unique(y_train))
+        for i in range(X_train.shape[0]):
+            model.partial_fit(X_train[i].reshape(1,-1), np.array([y_train[i]]), classes=np.unique(y_train))
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         probas = model.predict_proba(X_test)
@@ -115,7 +114,10 @@ def mlp():
         "losses": mlp_losses
     }
     
+    with open(output_file, "a") as f:
+        f.write(f"MLP,{accuracy},{mse},\"{conf_matrix_mlp}\",\"{mlp_accuracies}\",\"{mlp_losses}\"\n")
     print(result)
+    return result
 
 class CNNModel(nn.Module):
     def __init__(self):
@@ -193,6 +195,9 @@ def cnn():
         "losses": cnn_losses
     }
     
+    with open(output_file, "a") as f:
+        f.write(f"CNN,{accuracy_cnn},{mse_cnn},\"{conf_matrix_cnn}\",\"{cnn_accuracies}\",\"{cnn_losses}\"\n")
+    print(result)
     return result
 
 # ================================================================
