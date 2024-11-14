@@ -93,8 +93,9 @@ def mlp():
     mlp_losses = []
     
     for epoch in range(max_iter_number):
-        for i in range(X_train.shape[0]):
-            model.partial_fit(X_train[i].reshape(1,-1), np.array([y_train[i]]), classes=np.unique(y_train))
+        # for i in range(X_train.shape[0]):
+        #     model.partial_fit(X_train[i].reshape(1,-1), np.array([y_train[i]]), classes=np.unique(y_train))
+        model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         probas = model.predict_proba(X_test)
