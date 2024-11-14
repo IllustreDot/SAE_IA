@@ -122,19 +122,24 @@ def mlp():
 
 
 def visualize_feature_maps(model, image, layer_names=["conv1", "conv2"]):
+    """ Visualize the output feature maps of the specified layers for a given input image."""
     model.eval()
-
+    
     with torch.no_grad():
         x = image
         for name, layer in model.named_children():
             x = layer(x)
             if name in layer_names:
                 num_feature_maps = x.shape[1]
-                fig, axs = plt.subplots(1, num_feature_maps, figsize=(15, 15))
-                for i in range(num_feature_maps):
-                    axs[i].imshow(x[0, i].cpu().numpy(), cmap='viridis')
-                    axs[i].axis('off')
-                plt.suptitle(f"Feature Maps after {name}")
+                grid_size = math.ceil(math.sqrt(num_feature_maps))
+                fig, axs = plt.subplots(grid_size, grid_size, figsize=(15, 15))
+                fig.suptitle(f"Feature Maps after {name}", fontsize=16)
+                for i in range(grid_size * grid_size):
+                    ax = axs[i // grid_size, i % grid_size]
+                    if i < num_feature_maps:
+                        ax.imshow(x[0, i].cpu().numpy(), cmap='viridis')
+                    ax.axis('off')
+                    
                 plt.show()
                 
     model.train()
