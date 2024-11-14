@@ -120,6 +120,25 @@ def mlp():
     print(result)
     return result
 
+
+def visualize_feature_maps(model, image, layer_names=["conv1", "conv2"]):
+    model.eval()
+
+    with torch.no_grad():
+        x = image
+        for name, layer in model.named_children():
+            x = layer(x)
+            if name in layer_names:
+                num_feature_maps = x.shape[1]
+                fig, axs = plt.subplots(1, num_feature_maps, figsize=(15, 15))
+                for i in range(num_feature_maps):
+                    axs[i].imshow(x[0, i].cpu().numpy(), cmap='viridis')
+                    axs[i].axis('off')
+                plt.suptitle(f"Feature Maps after {name}")
+                plt.show()
+                
+    model.train()
+
 class CNNModel(nn.Module):
     def __init__(self):
         super(CNNModel, self).__init__()
@@ -161,6 +180,11 @@ def cnn():
             running_loss += loss.item()
             
         cnn_losses.append(running_loss / len(train_loader))
+        
+        if epoch == 0:  # Visualize at the start of training
+            sample_image, _ = next(iter(test_loader))
+            visualize_feature_maps(cnn_model, sample_image[:1])  # Take one sample for visualization
+        
         cnn_model.eval()
         correct, total = 0, 0
         mse_loss = 0.0
