@@ -7,6 +7,7 @@
 # to use for next import
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import matplotlib.pyplot as plt
+from sympy import product
 import seaborn as sns
 import pandas as pd
 import numpy as np
@@ -46,14 +47,13 @@ def generate_layer_configurations(hl_nb_dict_of_dict):
 # Variable init ==================================================
 
 hl_nb_dict_of_dict = {
-    "1": {"1": 784},
-    "2": {"1": 784, "2": 584, "3": 284, "4": 84, "5": 10},
-    "3": {"1": 784, "2": 584, "3": 284, "4": 84, "5": 10},
-    "4": {"1": 784, "2": 584, "3": 284, "4": 84, "5": 10}
+    "1": {"1": 18},
+    "2": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
+    "3": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
+    "4": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2}
 }
 
 layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
-# TODO : need more reflexion for the following code part with pytorch to get a correct tester
 
 learning_rate_init_number = 0.001
 alpha_number = 1e-4
@@ -85,13 +85,7 @@ class CNNModel(nn.Module):
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 64 * 7 * 7)
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        # TODO : need to be done in a way that adapt to the selected layer at the beginning of the cnn function call
         return x
 
 def cnn():
