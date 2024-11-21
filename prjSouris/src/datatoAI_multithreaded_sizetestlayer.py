@@ -41,20 +41,33 @@ behavior = ["scratching","body grooming"]
 
 def LoadDataAll():
     data = {"data": None, "classification": None}
+    file_sizes = []
+    for cl in behavior:
+        data_file = pd.read_csv(path_to_data + cl + "/" + data_files_name)
+        file_sizes.append(len(data_file))
+    min_size = min(file_sizes)
+    print(min_size)
+
+
     for cl in behavior:
         data_file = pd.read_csv(path_to_data + cl + "/" + data_files_name)
         data_classification_file = pd.read_csv(path_to_data + cl + "/" + data_classification_files_name)
-        
+
+        # TODO? : there is a huge flaw in the code below, the relation between the data and the classification is not kept when we sample the data (i think that why i put the random_state=13 but im not sure)
+        data_file = data_file.sample(n=min_size, random_state=13)
+        data_classification_file = data_classification_file.sample(n=min_size, random_state=13)
+
         columns_to_keep = [col for col in data_classification_file.columns if col in behavior]
         data_classification_file = data_classification_file[columns_to_keep]
-        
+
         if data["data"] is None:
             data["data"] = data_file
             data["classification"] = data_classification_file
         else:
             data["data"] = pd.concat([data["data"], data_file], ignore_index=True)
             data["classification"] = pd.concat([data["classification"], data_classification_file], ignore_index=True)
-    
+    print(len(data["data"]))
+    print(data)
     return data
 
 def PrepareData(data):
@@ -84,14 +97,14 @@ def generate_layer_configurations(hl_nb_dict_of_dict):
     for num_layers in range(1, len(hl_nb_dict_of_dict) + 1):
         current_layer_values = [hl_nb_dict_of_dict[str(i+1)].values() for i in range(num_layers)]
         for config in product(*current_layer_values):
-            if all(config[i] > config[i+1] for i in range(len(config) - 1)):
+            if all(config[i] > config[i+1] for i in range(len(config) - 1)) and config[-1] == 2:
                 to_return_layers.append(config)
     to_return_layers = [layer for layer in to_return_layers if len(layer) > 1]
     return to_return_layers
 
 # ================================================================
 
-# Variable init programm =========================================
+# Variable init program ==========================================
 
 hl_nb_dict_of_dict = {
     "1": {"1": 19},
@@ -103,10 +116,10 @@ hl_nb_dict_of_dict = {
 }
 
 layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
+print (layer_configs)
 
 learning_rate_init_number = 0.001
 alpha_number = 1e-4
-random_state_number = 1
 max_iter_number = 100
 
 # ================================================================
@@ -115,7 +128,7 @@ max_iter_number = 100
 
 if not os.path.exists(output_file):
     with open(output_file, "w") as f:
-        f.write("accuracy,mse,conf_matrix,accuracies,losses,mses\n")
+        f.write("behavior,layer,accuracy,mse,conf_matrix,accuracies,losses,mses\n")
     print("Output file:", output_file, " created")
 else:
     print("Output file:", output_file, " exists")
@@ -146,8 +159,8 @@ class NNModel(nn.Module):
 def nnRun(layer_config):
     nn_model = NNModel(layer_config)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(nn_model.parameters(), lr=learning_rate_init_number)
-    
+    optimizer = optim.Adam(nn_model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
+
     nn_accuracies, nn_losses, nn_mses = [], [], []
 
     for epoch in range(max_iter_number):
@@ -160,53 +173,53 @@ def nnRun(layer_config):
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-            
+
         nn_losses.append(running_loss / len(train_loader))
-        
+
         nn_model.eval()
         correct, total, mse_loss = 0, 0, 0.0
         y_true, y_pred = [], []
-        
+
         with torch.no_grad():
             for inputs, labels in test_loader:
                 outputs = nn_model(inputs)
                 _, predicted = torch.max(outputs.data, 1)
-                
+
                 y_true.extend(labels.tolist())
                 y_pred.extend(predicted.tolist())
-                
+
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
                 probabilities = F.softmax(outputs, dim=1)
                 labels_one_hot = F.one_hot(labels, num_classes=len(behavior)).float()
                 mse_loss += F.mse_loss(probabilities, labels_one_hot, reduction='sum').item()
 
-        accuracy_cnn = 100 * correct / total
-        nn_accuracies.append(accuracy_cnn)
-        mse_cnn = mse_loss / total
-        nn_mses.append(mse_cnn)
-        
-        print(f'Epoch {epoch+1}/{max_iter_number}, CNN Test Accuracy: {accuracy_cnn:.2f}%, MSE: {mse_cnn:.4f} of layer {layer_config}')
+        accuracy_nn = 100 * correct / total
+        nn_accuracies.append(accuracy_nn)
+        mse_nn = mse_loss / total
+        nn_mses.append(mse_nn)
 
-    conf_matrix_cnn = confusion_matrix(y_true, y_pred)
+        print(f'Epoch {epoch+1}/{max_iter_number}, NN Test Accuracy: {accuracy_nn:.2f}%, MSE: {mse_nn:.4f} of layer {layer_config}')
+
+    conf_matrix_nn = confusion_matrix(y_true, y_pred)
 
     result = {
-        "accuracy": accuracy_cnn,
-        "mse": mse_cnn,
-        "conf_matrix": conf_matrix_cnn,
+        "accuracy": accuracy_nn,
+        "mse": mse_nn,
+        "conf_matrix": conf_matrix_nn,
         "accuracies": nn_accuracies,
         "losses": nn_losses,
         "mses": nn_mses
     }
-    
+
     with open(output_file, "a") as f:
-        f.write(f"{accuracy_cnn},{mse_cnn},\"{conf_matrix_cnn}\",\"{nn_accuracies}\",\"{nn_losses}\",\"{nn_mses}\"\n")
+        f.write(f"\"{behavior}\",\"{layer_config}\",{accuracy_nn},{mse_nn},\"{conf_matrix_nn.tolist()}\",\"{nn_accuracies}\",\"{nn_losses}\",\"{nn_mses}\"\n")
     print(result)
     return result
 
 # ================================================================
 
-# use model mlp and cnn ==========================================
+# multithreading =================================================
 
 def RunNNMultithreaded():
     results = []
