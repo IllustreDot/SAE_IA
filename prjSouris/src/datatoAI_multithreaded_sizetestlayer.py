@@ -10,10 +10,11 @@ import matplotlib.pyplot as plt
 from itertools import product
 import pandas as pd
 import numpy as np
+import ast 
 import os
 
 #to extract data and visualy see the most fitting parmeters
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix
 
 import torch
 import torch.nn as nn
@@ -21,19 +22,51 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
+
+
 # ================================================================
 
-# Variable config ================================================
+# Variable config import =========================================
 
-basedirpath = "../rsc/"
-path_to_data = basedirpath + "data_cleaned/"
-data_files_name = "data.csv"
-data_classification_files_name = "data_classification.csv"
-output_path = basedirpath + "output/"
-output_file = output_path + "analitics.csv"
+import sys
+sys.path.append("../rsc/config")  # Relative path to the config directory
+from allvariable import * 
 
-# kind is the list of comportement of the mouse we will train the AI on
-behavior = ["scratching","body grooming"]
+# ================================================================
+
+# validator behavior combinaison done ============================
+
+def GetBehaviors(selector):
+    data_classification_file = pd.read_csv(path_to_data_clean + selector + "/" + file_name_data_classification)
+    data_classification = data_classification_file.columns.tolist()
+    return data_classification
+
+def checkBehavior(behaviorPairs):
+    done_file = pd.read_csv(path_to_config + dile_name_config_done)
+    done = []
+    for item in done_file["behavior"]:
+        if isinstance(item, str):
+            parsed_item = ast.literal_eval(item)
+            done.append(tuple(parsed_item))
+        elif isinstance(item, list):
+            done.append(tuple(item))
+        else:
+            done.append(item)
+    for pair in behaviorPairs[:]:
+        if pair in done:
+            behaviorPairs.remove(pair)
+            print(f"\"{pair[0]}\" and \"{pair[1]}\" already done")
+    return behaviorPairs
+
+def ValidateBehavior(selector):
+    behaviors = GetBehaviors(selector)
+    behaviorPairs = []
+    for behavior in behaviors:
+        if behavior == selector:
+            continue
+        behaviorPairs.append((selector, behavior))
+    behaviorPairs = checkBehavior(behaviorPairs)
+    return behaviorPairs
 
 # ================================================================
 
@@ -43,15 +76,14 @@ def LoadDataAll():
     data = {"data": None, "classification": None}
     file_sizes = []
     for cl in behavior:
-        data_file = pd.read_csv(path_to_data + cl + "/" + data_files_name)
+        data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
         file_sizes.append(len(data_file))
     min_size = min(file_sizes)
-    print(min_size)
 
 
     for cl in behavior:
-        data_file = pd.read_csv(path_to_data + cl + "/" + data_files_name)
-        data_classification_file = pd.read_csv(path_to_data + cl + "/" + data_classification_files_name)
+        data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
+        data_classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
 
         # TODO? : there is a huge flaw in the code below, the relation between the data and the classification is not kept when we sample the data (i think that why i put the random_state=13 but im not sure)
         data_file = data_file.sample(n=min_size, random_state=13)
@@ -66,8 +98,6 @@ def LoadDataAll():
         else:
             data["data"] = pd.concat([data["data"], data_file], ignore_index=True)
             data["classification"] = pd.concat([data["classification"], data_classification_file], ignore_index=True)
-    print(len(data["data"]))
-    print(data)
     return data
 
 def PrepareData(data):
@@ -104,34 +134,14 @@ def generate_layer_configurations(hl_nb_dict_of_dict):
 
 # ================================================================
 
-# Variable init program ==========================================
-
-hl_nb_dict_of_dict = {
-    "1": {"1": 19},
-    "2": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
-    "3": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
-    "4": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
-    "5": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
-    "6": {"1": 15, "2": 12, "3": 9, "4": 6, "5": 3, "6": 2},
-}
-
-layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
-print (layer_configs)
-
-learning_rate_init_number = 0.001
-alpha_number = 1e-4
-max_iter_number = 100
-
-# ================================================================
-
 # init of collected data file ====================================
 
-if not os.path.exists(output_file):
-    with open(output_file, "w") as f:
+if not os.path.exists(path_to_output + file_name_data_output):
+    with open(path_to_output + file_name_data_output, "w") as f:
         f.write("behavior,layer,accuracy,mse,conf_matrix,accuracies,losses,mses\n")
-    print("Output file:", output_file, " created")
+    print("Output file:", path_to_output + file_name_data_output, " created")
 else:
-    print("Output file:", output_file, " exists")
+    print("Output file:", path_to_output + file_name_data_output, " exists")
 
 # ================================================================
 
@@ -212,7 +222,7 @@ def nnRun(layer_config):
         "mses": nn_mses
     }
 
-    with open(output_file, "a") as f:
+    with open(path_to_output + file_name_data_output, "a") as f:
         f.write(f"\"{behavior}\",\"{layer_config}\",{accuracy_nn},{mse_nn},\"{conf_matrix_nn.tolist()}\",\"{nn_accuracies}\",\"{nn_losses}\",\"{nn_mses}\"\n")
     print(result)
     return result
@@ -231,97 +241,18 @@ def RunNNMultithreaded():
 
 # ================================================================
 
-# load the data from the file ====================================
-
-def LoadDataResultat():
-    data = pd.read_csv(output_file)
-    return data
-
-# ================================================================
-
-# Display results ================================================
-
-def DisplayResults(data = None):
-    if data == None:
-        data = LoadDataResultat()
-
-    # Plot Accuracy, Loss, and MSE Progression for all configurations
-    plt.figure(figsize=(18, 12))
-
-    # Accuracy Plot
-    plt.subplot(3, 1, 1)
-    for index, row in data.iterrows():
-        accuracies = eval(row["accuracies"])
-        plt.plot(accuracies, label=f"Config {index + 1}: {row['accuracy']:.2f}%")
-    plt.title("Accuracy Progression Across Configurations")
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy (%)")
-    plt.legend()
-
-    # Loss Plot
-    plt.subplot(3, 1, 2)
-    for index, row in data.iterrows():
-        losses = eval(row["losses"])
-        plt.plot(losses, label=f"Config {index + 1}")
-    plt.title("Loss Progression Across Configurations")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend()
-
-    # MSE Plot
-    plt.subplot(3, 1, 3)
-    for index, row in data.iterrows():
-        mses = eval(row["mses"])
-        plt.plot(mses, label=f"Config {index + 1}")
-    plt.title("MSE Progression Across Configurations")
-    plt.xlabel("Epoch")
-    plt.ylabel("Mean Squared Error")
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-    # Display Confusion Matrices
-    for index, row in data.iterrows():
-        conf_matrix = eval(row["conf_matrix"])
-        ConfusionMatrixDisplay(conf_matrix).plot()
-        plt.title(f"Confusion Matrix for Config {index + 1}")
-        plt.show()
-
-    # Bar plot comparison of final accuracies
-    plt.figure(figsize=(10, 6))
-    configurations = [f"Config {i + 1}" for i in range(len(data))]
-    accuracies = data["accuracy"].tolist()
-    plt.bar(configurations, accuracies, color='skyblue')
-    plt.title("Comparison of Final Accuracies Across Configurations")
-    plt.ylabel("Accuracy (%)")
-    plt.xticks(rotation=45, ha="right")
-    plt.tight_layout()
-    plt.show()
-
-# ================================================================
-
-# display best configuration =====================================
-
-    best_index = data["accuracy"].idxmax()
-    best_row = data.iloc[best_index]
-    print(f"Best Configuration: Config {best_index + 1}")
-    print(f"  Accuracy: {best_row['accuracy']:.2f}%")
-    print(f"  Final Loss: {eval(best_row['losses'])[-1]:.4f}")
-    print(f"  Final MSE: {eval(best_row['mses'])[-1]:.4f}")
-
-    ConfusionMatrixDisplay(eval(best_row["conf_matrix"])).plot()
-    plt.title(f"Confusion Matrix for Best Config {best_index + 1}")
-    plt.show()
-
-# ================================================================
-
 # Run the program ================================================
 
 if __name__ == "__main__":
     print("Starting")
-    train_loader, test_loader = LoadData()
-    results = RunNNMultithreaded()
-    DisplayResults(results)
+    layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
+    behaviorPairs = ValidateBehavior(selector)
+    for behavior in behaviorPairs:
+        print(f"Starting {behavior[0]} and {behavior[1]}")
+        train_loader, test_loader = LoadData()
+        results = RunNNMultithreaded()
+        with open(path_to_config + dile_name_config_done, "a") as f:
+            f.write(f"\"{behavior}\"\n")
+
 
 # ================================================================
