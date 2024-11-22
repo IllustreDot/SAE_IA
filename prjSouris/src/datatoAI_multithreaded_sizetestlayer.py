@@ -8,6 +8,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from itertools import product
+import multiprocessing
 import pandas as pd
 import numpy as np
 import ast 
@@ -20,6 +21,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.multiprocessing as mp
 from torch.utils.data import DataLoader, TensorDataset
 
 
@@ -72,7 +74,7 @@ def ValidateBehavior(selector):
 
 # Collect data and Standardization ===============================
 
-def LoadDataAll():
+def LoadDataAll(behavior):
     data = {"data": None, "classification": None}
     file_sizes = []
     for cl in behavior:
@@ -113,8 +115,8 @@ def PrepareData(data):
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     return train_loader, test_loader
 
-def LoadData():
-    raw_data = LoadDataAll()
+def LoadData(behavior):
+    raw_data = LoadDataAll(behavior)
     train_loader, test_loader = PrepareData(raw_data)
     return train_loader, test_loader
 
@@ -147,6 +149,8 @@ else:
 
 # Model Creation and Data Collection =============================
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 class NNModel(nn.Module):
     def __init__(self, layer_config):
         super(NNModel, self).__init__()
@@ -166,8 +170,8 @@ class NNModel(nn.Module):
                 x = self.dropout(x)
         return x
 
-def nnRun(layer_config):
-    nn_model = NNModel(layer_config)
+def nnRun(layer_config, behavior, train_loader, test_loader):
+    nn_model = NNModel(layer_config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(nn_model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
 
@@ -177,6 +181,7 @@ def nnRun(layer_config):
         nn_model.train()
         running_loss = 0.0
         for inputs, labels in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = nn_model(inputs)
             loss = criterion(outputs, labels)
@@ -192,6 +197,7 @@ def nnRun(layer_config):
 
         with torch.no_grad():
             for inputs, labels in test_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
                 outputs = nn_model(inputs)
                 _, predicted = torch.max(outputs.data, 1)
 
@@ -224,20 +230,23 @@ def nnRun(layer_config):
 
     with open(path_to_output + file_name_data_output, "a") as f:
         f.write(f"\"{behavior}\",\"{layer_config}\",{accuracy_nn},{mse_nn},\"{conf_matrix_nn.tolist()}\",\"{nn_accuracies}\",\"{nn_losses}\",\"{nn_mses}\"\n")
-    print(result)
-    return result
 
 # ================================================================
 
 # multithreading =================================================
 
-def RunNNMultithreaded():
-    results = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(nnRun, layer_config) for layer_config in layer_configs]
-        for future in as_completed(futures):
-            results.append(future.result())
-    return results
+def train_single_behavior(behavior, train_loader, test_loader, layer_configs):
+    print(f"Starting training for behavior pair: {behavior}")
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        for config in layer_configs :
+            executor.submit(nnRun, config, behavior, train_loader, test_loader)
+
+def run_parallel_behavior_training(behavior_pairs, layer_configs):
+    for behavior in behavior_pairs:
+        train_loader, test_loader = LoadData(behavior)
+        train_single_behavior(behavior, train_loader, test_loader, layer_configs)
+        with open(path_to_config + dile_name_config_done, "a") as f:
+            f.write(f"\"{behavior}\"\n")
 
 # ================================================================
 
@@ -247,12 +256,6 @@ if __name__ == "__main__":
     print("Starting")
     layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
     behaviorPairs = ValidateBehavior(selector)
-    for behavior in behaviorPairs:
-        print(f"Starting {behavior[0]} and {behavior[1]}")
-        train_loader, test_loader = LoadData()
-        results = RunNNMultithreaded()
-        with open(path_to_config + dile_name_config_done, "a") as f:
-            f.write(f"\"{behavior}\"\n")
-
+    run_parallel_behavior_training(behaviorPairs, layer_configs)
 
 # ================================================================

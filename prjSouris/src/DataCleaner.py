@@ -52,9 +52,11 @@ def create_folder():
             os.makedirs(path_to_data_clean + cl)
         if not os.path.exists(path_to_data_clean + cl + "/data.csv"):
             with open(path_to_data_clean + cl + "/data.csv", "w") as f:
-                for i in range(len(file_name_data_true_header)-1):
-                    f.write(file_name_data_true_header[i] + "_" + file_name_data_sub_header[i] + ",")
-                f.write(file_name_data_true_header[-1] + "_" + file_name_data_sub_header[-1] + "\n")
+                for i in range(len(file_name_data_true_header)-2):
+                    if file_name_data_sub_header[i] != "likelihood":
+                        print (file_name_data_sub_header[i])
+                        f.write(file_name_data_true_header[i] + "_" + file_name_data_sub_header[i] + ",")
+                f.write(file_name_data_true_header[-2] + "_" + file_name_data_sub_header[-2] + "\n")
         if not os.path.exists(path_to_data_clean + cl + "/data_classification.csv"):
             with open(path_to_data_clean + cl + "/data_classification.csv", "w") as f:
                 for i in range(len(data_classification_header)-1):
@@ -85,6 +87,13 @@ def sort_files():
     for data_file, classification_file in matches.items():
         print("loading data : ", data_file , " with classification : ", classification_file)
         load_data = pd.read_csv(path_to_data + data_file)
+        
+        index_to_drop = []
+        for i in range(len(load_data.columns)):
+            if load_data.iloc[1, i] == "likelihood":
+                index_to_drop.append(i)
+        load_data = load_data.drop(load_data.columns[index_to_drop], axis=1)
+        
         load_data_classification = pd.read_csv(path_to_data_classification + classification_file)
         load_data_classification = load_data_classification.drop(load_data_classification.columns[0], axis=1)
 
