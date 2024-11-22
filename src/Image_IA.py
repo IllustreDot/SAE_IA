@@ -112,8 +112,8 @@ test_size = len(dataset) - train_size  # 20% for testing
 train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
 
 # Create DataLoader for training and testing with num_workers
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4, pin_memory=True)
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, pin_memory=True)
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=True, pin_memory=True)
 
 params = {
     'input_channels': 3,  # RGB images
@@ -149,8 +149,8 @@ for epoch in range(epochs):
     correct = 0
     total = 0
 
-    for inputs, labels in train_loader:
-        print(total)
+    for batch_idx, (inputs, labels) in enumerate(train_loader):
+        print(f"Batch {batch_idx + 1}/{len(train_loader)}")  # Debug batch count
         optimizer.zero_grad()
 
         # Forward pass
