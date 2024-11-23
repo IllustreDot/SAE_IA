@@ -11,7 +11,7 @@ from itertools import product
 import multiprocessing
 import pandas as pd
 import numpy as np
-import ast 
+import ast
 import os
 
 #to extract data and visualy see the most fitting parmeters
@@ -24,7 +24,7 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader, TensorDataset
 
-
+torch.backends.cudnn.benchmark = True
 
 # ================================================================
 
@@ -32,7 +32,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 import sys
 sys.path.append("../rsc/config")  # Relative path to the config directory
-from allvariable import * 
+from allvariable import *
 
 # ================================================================
 
@@ -138,18 +138,17 @@ def generate_layer_configurations(hl_nb_dict_of_dict):
 
 # init of collected data file ====================================
 
-if not os.path.exists(path_to_output + file_name_data_output):
-    with open(path_to_output + file_name_data_output, "w") as f:
-        f.write("behavior,layer,accuracy,mse,conf_matrix,accuracies,losses,mses\n")
-    print("Output file:", path_to_output + file_name_data_output, " created")
-else:
-    print("Output file:", path_to_output + file_name_data_output, " exists")
+def create_output_file(path_to_output, file_name_data_output):
+    if not os.path.exists(path_to_output + file_name_data_output):
+        with open(path_to_output + file_name_data_output, "w") as f:
+            f.write("behavior,layer,accuracy,mse,conf_matrix,accuracies,losses,mses\n")
+        print("Output file:", path_to_output + file_name_data_output, " created")
+    else:
+        print("Output file:", path_to_output + file_name_data_output, " exists")
 
 # ================================================================
 
 # Model Creation and Data Collection =============================
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class NNModel(nn.Module):
     def __init__(self, layer_config):
@@ -170,7 +169,15 @@ class NNModel(nn.Module):
                 x = self.dropout(x)
         return x
 
-def nnRun(layer_config, behavior, train_loader, test_loader):
+# result = {
+#     "accuracy": accuracy_nn,
+#     "mse": mse_nn,
+#     "conf_matrix": conf_matrix_nn,
+#     "accuracies": nn_accuracies,
+#     "losses": nn_losses,
+#     "mses": nn_mses
+# }
+def nnRun(layer_config, behavior, train_loader, test_loader, device):
     nn_model = NNModel(layer_config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(nn_model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
@@ -219,15 +226,6 @@ def nnRun(layer_config, behavior, train_loader, test_loader):
 
     conf_matrix_nn = confusion_matrix(y_true, y_pred)
 
-    result = {
-        "accuracy": accuracy_nn,
-        "mse": mse_nn,
-        "conf_matrix": conf_matrix_nn,
-        "accuracies": nn_accuracies,
-        "losses": nn_losses,
-        "mses": nn_mses
-    }
-
     with open(path_to_output + file_name_data_output, "a") as f:
         f.write(f"\"{behavior}\",\"{layer_config}\",{accuracy_nn},{mse_nn},\"{conf_matrix_nn.tolist()}\",\"{nn_accuracies}\",\"{nn_losses}\",\"{nn_mses}\"\n")
 
@@ -235,16 +233,29 @@ def nnRun(layer_config, behavior, train_loader, test_loader):
 
 # multithreading =================================================
 
-def train_single_behavior(behavior, train_loader, test_loader, layer_configs):
-    print(f"Starting training for behavior pair: {behavior}")
+def cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs):
     with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        for config in layer_configs :
-            executor.submit(nnRun, config, behavior, train_loader, test_loader)
+        for config in layer_configs:
+            executor.submit(nnRun, config, behavior, train_loader, test_loader, torch.device('cpu'))
 
-def run_parallel_behavior_training(behavior_pairs, layer_configs):
+def gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_loader, devices):
+    for config in layer_configs:
+        nnRun(config, behavior, train_loader, test_loader, devices[0])
+    # with mp.Pool(processes=len(devices)) as pool:
+    #     pool.starmap(nnRun, [(config, behavior, train_loader, test_loader, device) for config, device in zip(layer_configs, devices)])
+
+def run_parallel_behavior_training(behavior_pairs, layer_configs, choose_gpu=False):
     for behavior in behavior_pairs:
+        print(f"Training for {behavior}")
         train_loader, test_loader = LoadData(behavior)
-        train_single_behavior(behavior, train_loader, test_loader, layer_configs)
+        if choose_gpu:
+            num_gpus = torch.cuda.device_count()
+            print(f"Using {num_gpus} GPUs.")
+            devices = [torch.device(f'cuda:{i}') for i in range(num_gpus)]
+            print(devices)
+            gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_loader, devices)
+        else:
+            cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs)
         with open(path_to_config + dile_name_config_done, "a") as f:
             f.write(f"\"{behavior}\"\n")
 
@@ -254,8 +265,9 @@ def run_parallel_behavior_training(behavior_pairs, layer_configs):
 
 if __name__ == "__main__":
     print("Starting")
+    create_output_file(path_to_output, file_name_data_output)
     layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
     behaviorPairs = ValidateBehavior(selector)
-    run_parallel_behavior_training(behaviorPairs, layer_configs)
+    run_parallel_behavior_training(behaviorPairs, layer_configs, choose_gpu)
 
-# ================================================================
+# ================================================================"

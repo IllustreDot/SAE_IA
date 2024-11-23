@@ -1,2 +1,9 @@
 behavior
-"['scratching', 'body grooming']"
+"('scratching', 'body grooming')"
+"('scratching', 'face grooming')"
+"('scratching', 'hind paw licking')"
+"('scratching', 'jump')"
+"('scratching', 'locomotion')"
+"('scratching', 'rearing')"
+"('scratching', 'still')"
+"('scratching', 'wall rearing')"
