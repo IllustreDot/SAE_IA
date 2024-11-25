@@ -5,8 +5,7 @@
 # Import =========================================================
 
 # to use for next import
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import matplotlib.pyplot as plt
+from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 import multiprocessing
 import pandas as pd
@@ -84,6 +83,7 @@ def LoadDataAll(behavior):
 
 
     for cl in behavior:
+        print(f"Loading data for {cl}")
         data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
         data_classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
 
@@ -178,6 +178,7 @@ class NNModel(nn.Module):
 #     "mses": nn_mses
 # }
 def nnRun(layer_config, behavior, train_loader, test_loader, device):
+    print(f"Training for {behavior} with layer {layer_config}, on device {device}")
     nn_model = NNModel(layer_config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(nn_model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
@@ -234,11 +235,13 @@ def nnRun(layer_config, behavior, train_loader, test_loader, device):
 # multithreading =================================================
 
 def cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs):
+    print("Using CPU")
     with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         for config in layer_configs:
             executor.submit(nnRun, config, behavior, train_loader, test_loader, torch.device('cpu'))
 
 def gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_loader, devices):
+    print("Using GPU")
     for config in layer_configs:
         nnRun(config, behavior, train_loader, test_loader, devices[0])
     # with mp.Pool(processes=len(devices)) as pool:
@@ -246,8 +249,8 @@ def gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_l
 
 def run_parallel_behavior_training(behavior_pairs, layer_configs, choose_gpu=False):
     for behavior in behavior_pairs:
-        print(f"Training for {behavior}")
         train_loader, test_loader = LoadData(behavior)
+        print(f"Training for {behavior}")
         if choose_gpu:
             num_gpus = torch.cuda.device_count()
             print(f"Using {num_gpus} GPUs.")
@@ -266,8 +269,8 @@ def run_parallel_behavior_training(behavior_pairs, layer_configs, choose_gpu=Fal
 if __name__ == "__main__":
     print("Starting")
     create_output_file(path_to_output, file_name_data_output)
-    layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
     behaviorPairs = ValidateBehavior(selector)
+    layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
     run_parallel_behavior_training(behaviorPairs, layer_configs, choose_gpu)
 
 # ================================================================"
