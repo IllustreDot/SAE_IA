@@ -1,16 +1,26 @@
 # building AI from mouse translated to point coordinate dataset
 # author: 37b7
-# created: 20 Nov 2024
+# created: 25 Nov 2024
 
 # Import =========================================================
 
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
 
+import sys
+sys.path.append("../rsc/config")
+from allvariable import *
+
 # ===============================================================
+
+def create_output_file(path_to_output, file_name_output):
+    if not os.path.exists(path_to_output + file_name_output):
+        with open(path_to_output + file_name_output, "w") as f:
+            f.write("behavior,layer,accuracy,mse,conf_matrix,accuracies,losses,mses\n")
 
 class NNModel(nn.Module):
     def __init__(self, layer_config):
@@ -25,12 +35,11 @@ class NNModel(nn.Module):
                 x = self.dropout(x)
         return x
 
-
 def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_best_model):
     model = NNModel(layer_config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
     accuracies, losses, mses = [], [], []
 
     for epoch in range(max_iter_number):
@@ -44,7 +53,7 @@ def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_r
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        scheduler.step()
+        #scheduler.step()
         losses.append(running_loss / len(train_loader))
         model.eval()
         correct, total, mse_loss, y_true, y_pred = 0, 0, 0.0, [], []
@@ -64,6 +73,7 @@ def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_r
         mses.append(mse_loss / total)
         print(f"Behavior: {behavior}, Layer: {layer_config}, Epoch: {epoch + 1}, Accuracy: {accuracies[-1]:.2f}%, Loss: {losses[-1]:.4f}, MSE: {mses[-1]:.4f}")
 
-    with open(path_to_output + file_name_best_model, "a") as f:
+    create_output_file(path_to_output, file_name_data_output)
+    with open(path_to_output + file_name_data_output, "a") as f:
         f.write(f"\"{behavior}\",\"{layer_config}\",{accuracies[-1]},{mses[-1]},\"{confusion_matrix(y_true, y_pred).tolist()}\",\"{accuracies}\",\"{losses}\",\"{mses}\"\n")
     return model

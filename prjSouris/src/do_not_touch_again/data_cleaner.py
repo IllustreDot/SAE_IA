@@ -30,7 +30,6 @@ data_classification_header = pd.read_csv(path_to_data_classification + file_name
 data_classification_header = data_classification_header[1:].tolist()
 
 matches = {}
-save_matches = False # if you want to rewrite the matches file or not
 
 # ================================================================
 
