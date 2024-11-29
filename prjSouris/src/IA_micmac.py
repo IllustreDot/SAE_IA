@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import multiprocessing
 import seaborn as sns
 import pandas as pd
+import numpy as np
 import os
 
 # ===============================================================
@@ -17,9 +18,12 @@ import os
 import sys
 
 import torch
+from sklearn.metrics import confusion_matrix
+
 sys.path.append("../rsc/config")
 from allvariable import *
 from do_not_touch_again.nn_model import nn_run
+from do_not_touch_again.data_cleaner import get_single_data
 from do_not_touch_again.data_loader import get_best_layer, get_classification_header, get_merged_classifications, load_data
 
 # data related ==================================================
@@ -27,98 +31,125 @@ from do_not_touch_again.data_loader import get_best_layer, get_classification_he
 # ===============================================================
 
 def train_behavior(layer_configs, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output):
+    print("Using:", device)
     if isinstance(layer_configs, list):
-        print("Using :", device)
-        if device == "cpu":
+        if device == torch.device("cpu"):
+            print("Starting multiprocessing on CPU")
             with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
                 for config in layer_configs:
-                    executor.submit(nn_run,config,behavior,train_loader,test_loader,device,learning_rate_init_number,alpha_number,max_iter_number,path_to_output,file_name_data_output)
+                    executor.submit(nn_run, config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
         else:
-            for config in layer_configs:
-                model = nn_run(config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
+            print("Starting sequential processing on GPU")
+            results = [nn_run(config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output) for config in layer_configs]
         with open(path_to_config + dile_name_config_done, "a") as f:
-            f.write(str(behavior) + "\n")
+            f.write("\"" + str(behavior) + "\"\n")
         return nn_run(get_best_layer(behavior), behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
     else:
-        model = nn_run(layer_configs, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
-    return model
+        return nn_run(layer_configs, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
 
-def dispatcher(central_model, list_model, names, file_path, model_behaviors_to_merge, model_bahaviors_disabled):
-    data = pd.read_csv(file_path)
-    classifications = get_merged_classifications(model_behaviors_to_merge, model_bahaviors_disabled)
-    central_output = central_model(data)
-    central_output = tuple(central_output)
-    central_index = central_output.index(1)
-    central_behavior = classifications[central_index]
-    if central_behavior in model_behaviors_to_merge:
-        sub_model_index = names.index(central_behavior)
-        sub_model = list_model[sub_model_index]
-        sub_model_output = sub_model(data)
-        sub_model_output = tuple(sub_model_output)
-        sub_behaviors = model_behaviors_to_merge[central_behavior]
-        sub_behavior_index = sub_model_output.index(1)
-        sub_behavior = sub_behaviors[sub_behavior_index]
-        decompressed_output = [0] * len(classifications + sum(model_behaviors_to_merge.values(), []))
-        decompressed_index = classifications.index(central_behavior) + sub_behaviors.index(sub_behavior)
-        decompressed_output[decompressed_index] = 1
-        return tuple(decompressed_output)
-    decompressed_output = [0] * len(classifications + sum(model_behaviors_to_merge.values(), []))
-    decompressed_output[central_index] = 1
-    return tuple(decompressed_output)
-
-
-def dispatcher(central_model, list_model, names, file_path, model_behaviors_to_merge, model_behaviors_disabled):
-    data = pd.read_csv(file_path)
-    classifications = get_merged_classifications(model_behaviors_to_merge, model_behaviors_disabled)
-    central_output = tuple(central_model(data))
-    central_index = central_output.index(1)
-    central_behavior = classifications[central_index]
-    decompressed_output = [0] * (len(classifications) + len(sum(model_behaviors_to_merge.values(), [])))
+def dispatcher(data_row, central_model, list_model, names, model_behaviors_to_merge, model_bahaviors_disabled, classifications, full_header, merged_behaviors):
+    data_tensor = torch.tensor(data_row.values, dtype=torch.float32).unsqueeze(0)
+    central_output = central_model(data_tensor).argmax(dim=1).item()
+    central_behavior = classifications[central_output]
+    decompressed_output = [0] * len(full_header)
     if model_behaviors_to_merge:
         if central_behavior in model_behaviors_to_merge:
-            sub_model_index = names.index(central_behavior)
+            sub_model_index = names.index(central_behavior) - 1
             sub_model = list_model[sub_model_index]
-            sub_model_output = tuple(sub_model(data))
-            sub_behavior_index = sub_model_output.index(1)
-            decompressed_index = classifications.index(central_behavior) + sub_behavior_index
+            sub_model_output = sub_model(data_tensor).argmax(dim=1).item()
+            offset = 0
+            for b in full_header:
+                if b in model_bahaviors_disabled:
+                    continue
+                if b not in merged_behaviors:
+                    offset += 1
+            for behavior, merged_classes in model_behaviors_to_merge.items():
+                if behavior == central_behavior:
+                    break
+                offset += len(merged_classes)
+            decompressed_index = offset + sub_model_output
             decompressed_output[decompressed_index] = 1
         else:
-            decompressed_output[central_index] = 1
+            decompressed_output[central_output] = 1
     else:
-        decompressed_output[central_index] = 1
-    return tuple(decompressed_output), classifications
+        decompressed_output[central_output] = 1
+    print("decompressed_output : ",decompressed_output)
+    return tuple(decompressed_output)
 
-def reorder_and_include_disabled(current_output, current_order, desired_order, model_behaviors_disabled):
-    full_order = current_order + model_behaviors_disabled
-    reordered_output = [0] * len(desired_order)
-    for i, behavior in enumerate(desired_order):
-        if behavior in full_order:
-            index = full_order.index(behavior)
-            reordered_output[i] = current_output[index]
+def reorder_and_include_disabled(current_output, current_order, desired_order):
+    behavior_to_index = {behavior: i for i, behavior in enumerate(current_order)}
+    reordered_output = [[row[behavior_to_index[behavior]] if behavior in behavior_to_index else 0 for behavior in desired_order]for row in current_output]
     return reordered_output
 
-def create_ia_output_file(path_to_output, file_name):
+def create_ia_output_file(path_to_output, file_name, classification_headers):
     if not os.path.exists(path_to_output + file_name):
         with open(path_to_output + file_name, "w") as f:
-            f.write(get_classification_header(path_to_data_classification).split(",") + "\n")
+            f.write(",".join(classification_headers) + "\n")
 
-def compare_and_plot(input_file, output_file, column_names):
-    input_data = pd.read_csv(input_file, names=column_names)
-    output_data = pd.read_csv(output_file, names=column_names)
-    if input_data.shape != output_data.shape:
-        raise ValueError("Input and output files have mismatched shapes.")
-    comparison_data = pd.DataFrame({
-        "Value": input_data.values.flatten().tolist() + output_data.values.flatten().tolist(),
-        "Source": ["Input"] * input_data.size + ["Output"] * output_data.size,
-        "Index": list(range(input_data.size)) * 2
-    })
-    plt.figure(figsize=(14, 7))
-    sns.stripplot(data=comparison_data, x="Index", y="Value", hue="Source", jitter=True, dodge=True, alpha=0.6)
-    plt.title("Comparison of Input and Output Files")
-    plt.xlabel("Index (Flattened)")
-    plt.ylabel("Classification Value")
-    plt.legend(title="Source")
-    plt.tight_layout()
+def process_data(input_data_file, classification_headers, path_to_output, file_name_data_ia_output, path_to_data_classification,model_behaviors_to_merge, model_bahaviors_disabled, dico_model, names):
+    create_ia_output_file(path_to_output, file_name_data_ia_output, classification_headers)
+    print("Processing data from:", input_data_file)
+    data = get_single_data(input_data_file)
+    list_dispatcher_output = []
+    classifications = get_merged_classifications(model_behaviors_to_merge, model_bahaviors_disabled)
+    full_header = get_classification_header(path_to_data_classification)
+    merged_behaviors = [behavior for behaviors in model_behaviors_to_merge.values() for behavior in behaviors]
+    dispatcher_classification_order = []
+    for b in full_header:
+        if b in model_bahaviors_disabled:
+            continue
+        if b not in merged_behaviors:
+            dispatcher_classification_order.append(b)
+    for behavior in merged_behaviors + model_bahaviors_disabled:
+        dispatcher_classification_order.append(behavior)
+    for index, row in data.iterrows():
+        dispatcher_output = dispatcher(row, dico_model["central"],[dico_model[name] for name in names if name != "central"],names,model_behaviors_to_merge, model_bahaviors_disabled,classifications,full_header, merged_behaviors)
+        list_dispatcher_output.append(dispatcher_output)
+    reordered_output = reorder_and_include_disabled(list_dispatcher_output, dispatcher_classification_order,classification_headers)
+    with open(path_to_output + file_name_data_ia_output, "a") as f:
+        for row in reordered_output:
+            f.write(",".join(map(str, row)) + "\n")
+
+def compare_and_plot(input_data_file, ia_output_file, classification_headers, path_to_file_name_matches, path_to_data_classification):
+    matches_df = pd.read_csv(path_to_file_name_matches)
+    classification_file = None
+    for _, row in matches_df.iterrows():
+        if row['data_file'] == input_data_file:
+            classification_file = row['classification_file']
+            break
+    if classification_file is None:
+        print(f"Error: No matching classification file found for {input_data_file}")
+        return
+    real_data = pd.read_csv(path_to_data_classification + classification_file, header=None)
+    ia_output = pd.read_csv(ia_output_file, header=None)
+    real_data = real_data.drop(real_data.columns[0], axis=1)
+    if real_data.shape != ia_output.shape:
+        print("Error: The shape of the real classification data and IA output are not the same.")
+        return
+    correct_predictions = []
+    for real_row, ia_row in zip(real_data.iterrows(), ia_output.iterrows()):
+        real_class = np.array(real_row[1])
+        ia_class = np.array(ia_row[1])
+        if np.array_equal(real_class, ia_class):
+            correct_predictions.append(1)
+        else:
+            correct_predictions.append(0)
+    accuracy = np.mean(correct_predictions)
+    print(f"Overall Accuracy: {accuracy * 100:.2f}%")
+    cm = confusion_matrix(real_data.values.argmax(axis=1), ia_output.values.argmax(axis=1))
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=classification_headers, yticklabels=classification_headers)
+    plt.title('Confusion Matrix')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    plt.show()
+    plt.figure(figsize=(8, 6))
+    plt.plot(range(len(correct_predictions)), correct_predictions, label='Accuracy per row', color='blue')
+    plt.axhline(y=accuracy, color='r', linestyle='--', label=f'Overall Accuracy: {accuracy:.2f}')
+    plt.title('Prediction Accuracy')
+    plt.xlabel('Row Index')
+    plt.ylabel('Accuracy (1 for correct, 0 for incorrect)')
+    plt.legend()
     plt.show()
 
 def main():
@@ -134,19 +165,14 @@ def main():
                 sub_behaviors = model_behaviors_to_merge.get(name, [])
             print("Training model for:", sub_behaviors)
             dico_model[name] = train_behavior(layer_configs, sub_behaviors, train_loader, test_loader, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
-    create_ia_output_file(path_to_output, file_name_data_ia_output)
-    
-    input_data_file = path_to_data + os.listdir(path_to_data)[0]
-    print("Processing data from:", input_data_file)
-    data = pd.read_csv(input_data_file)
-    with open(path_to_output + file_name_data_ia_output, "a") as f:
-        for index, row in data.iterrows():
-            dispatcher_output, dispatcher_classification_order = dispatcher(dico_model["central"],[dico_model[name] for name in names if name != "central"],names,input_data_file,model_behaviors_to_merge, model_bahaviors_disabled)
-            reordered_output = reorder_and_include_disabled(dispatcher_output, dispatcher_classification_order,get_classification_header(path_to_data_classification).split(","),model_bahaviors_disabled)
-            f.write(",".join(map(str, reordered_output)) + "\n")
+
+    classification_headers = get_classification_header(path_to_data_classification)
+    name_file = os.listdir(path_to_data)[0]
+    input_data_file = path_to_data + name_file
+    process_data(input_data_file, classification_headers, path_to_output, name_file[:6] + file_name_data_ia_output, path_to_data_classification, model_behaviors_to_merge, model_bahaviors_disabled, dico_model, names)
     print("Processing complete. Results saved to:", path_to_output + file_name_data_ia_output)
     
-    compare_and_plot(input_data_file, path_to_output + file_name_data_ia_output, get_classification_header(path_to_data_classification).split(","))
+    compare_and_plot(name_file, path_to_output + name_file[:6] + file_name_data_ia_output, classification_headers, path_to_output + file_name_matches, path_to_data_classification)
 
 if __name__ == "__main__":
     main()

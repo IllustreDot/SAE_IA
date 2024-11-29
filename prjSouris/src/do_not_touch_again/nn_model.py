@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from sklearn.metrics import confusion_matrix
+from torch.cuda.amp import autocast, GradScaler
 
 import sys
 sys.path.append("../rsc/config")
@@ -39,8 +40,12 @@ def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_r
     model = NNModel(layer_config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate_init_number, weight_decay=alpha_number)
-    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=4, verbose=True)
     accuracies, losses, mses = [], [], []
+
+    best_accuracy = 0
+    epochs_without_improvement = 0
+    early_stop_patience = 10
 
     for epoch in range(max_iter_number):
         model.train()
@@ -53,7 +58,6 @@ def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_r
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        #scheduler.step()
         losses.append(running_loss / len(train_loader))
         model.eval()
         correct, total, mse_loss, y_true, y_pred = 0, 0, 0.0, [], []
@@ -68,10 +72,24 @@ def nn_run(layer_config, behavior, train_loader, test_loader, device, learning_r
                 correct += (predicted == labels).sum().item()
                 probabilities = F.softmax(outputs, dim=1)
                 mse_loss += F.mse_loss(probabilities, F.one_hot(labels, num_classes=len(behavior)).float(), reduction='sum').item()
-
-        accuracies.append(100 * correct / total)
+                
+        epoch_accuracy = 100 * correct / total
+        accuracies.append(epoch_accuracy)
         mses.append(mse_loss / total)
+
+        scheduler.step(epoch_accuracy)
+
+        if epoch_accuracy > best_accuracy:
+            best_accuracy = epoch_accuracy
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+
         print(f"Behavior: {behavior}, Layer: {layer_config}, Epoch: {epoch + 1}, Accuracy: {accuracies[-1]:.2f}%, Loss: {losses[-1]:.4f}, MSE: {mses[-1]:.4f}")
+        if epochs_without_improvement >= early_stop_patience:
+            print(f"Early stopping triggered after {epoch + 1} epochs. Best accuracy: {best_accuracy:.2f}%")
+            break
+        
 
     create_output_file(path_to_output, file_name_data_output)
     with open(path_to_output + file_name_data_output, "a") as f:

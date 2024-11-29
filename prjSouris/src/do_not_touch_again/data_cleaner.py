@@ -35,9 +35,9 @@ matches = {}
 
 # visualisation needed variables =================================
 
-print ("file_name_data_true_header : ", file_name_data_true_header)
-print ("file_name_data_sub_header : ", file_name_data_sub_header)
-print ("data_classification_header : ", data_classification_header)
+# print ("file_name_data_true_header : ", file_name_data_true_header)
+# print ("file_name_data_sub_header : ", file_name_data_sub_header)
+# print ("data_classification_header : ", data_classification_header)
 
 # ================================================================
 
@@ -53,7 +53,6 @@ def create_folder():
             with open(path_to_data_clean + cl + "/data.csv", "w") as f:
                 for i in range(1, len(file_name_data_true_header)-2):
                     if file_name_data_sub_header[i] != "likelihood":
-                        print (file_name_data_sub_header[i])
                         f.write(file_name_data_true_header[i] + "_" + file_name_data_sub_header[i] + ",")
                 f.write(file_name_data_true_header[-2] + "_" + file_name_data_sub_header[-2] + "\n")
         if not os.path.exists(path_to_data_clean + cl + "/data_classification.csv"):
@@ -150,10 +149,28 @@ def sort_files():
 
 # ================================================================
 
+def get_single_data(data_file):
+    load_data = pd.read_csv(data_file)
+    index_to_drop = [
+        i for i in range(len(load_data.columns))
+        if load_data.iloc[1, i] in {"likelihood", "coords"}
+    ]
+    load_data = load_data.drop(load_data.columns[index_to_drop], axis=1)
+
+    bodyparts_row = load_data.iloc[0].tolist()
+    body_part_names = [bodyparts_row[i] for i in range(0, len(bodyparts_row), 2)]
+    load_data.columns = [f"{part}_{axis}" for part in body_part_names for axis in ("x", "y")]
+    load_data = load_data.iloc[2:].reset_index(drop=True)
+    load_data = load_data.apply(pd.to_numeric, errors='coerce')
+    translated_data = translate_coordinates(load_data)
+    rotated_data = translated_data.apply(rotate_coordinates, axis=1)
+    return rotated_data
+
 # init ===========================================================
 
-create_folder()
-find_matches()
-sort_files()
+if process_data == True:
+    create_folder()
+    find_matches()
+    sort_files()
 
 # ================================================================
