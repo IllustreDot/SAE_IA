@@ -4,6 +4,7 @@
 
 # Import =========================================================
 
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -11,10 +12,10 @@ import pandas as pd
 
 # import variable config ==========================================
 
+from do_not_touch_again.data_loader import get_classification_header
 import sys
 sys.path.append("../rsc/config")
 from allvariable import *
-from prjSouris.src.do_not_touch_again.data_loader import get_classification_header
 
 # ================================================================
 
@@ -24,6 +25,13 @@ def LoadDataResultat():
     data = []
     for cl in get_classification_header(path_to_data_classification):
         data.append(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data))
+    return data
+
+def RawData():
+    data = []
+    name_file = os.listdir(path_to_data)[0]
+    input_data_file = path_to_data + name_file
+    data.append(pd.read_csv(input_data_file).sample(n=1000, random_state=13))
     return data
 
 # ================================================================
@@ -49,12 +57,36 @@ def DisplayData(data):
         plt.legend()
         plt.show()
 
+def RawDisplayData(data):
+    for cl in data:
+        bodypart = {
+            "nose": {"x": [], "y": []},
+            "forepaw_R": {"x": [], "y": []},
+            "forepaw_L": {"x": [], "y": []},
+            "hindpaw_R": {"x": [], "y": []},
+            "hindpaw_L": {"x": [], "y": []},
+            "tailbase": {"x": [], "y": []}
+        }
+        for i in range(1, len(cl.columns), 3):
+            part = cl.columns[i - 1]
+            if part in bodypart:
+                bodypart[part]["x"] = cl.iloc[:, i].values
+                bodypart[part]["y"] = cl.iloc[:, i + 1].values
+        
+        # Visualization
+        fig, ax = plt.subplots(figsize=(8, 6))
+        for key, coords in bodypart.items():
+            if coords["x"] and coords["y"]:
+                ax.scatter(coords["x"], coords["y"], label=key)
+        plt.legend()
+        plt.show()
+
 # ================================================================
 
 # main ==========================================================
 
 def main():
-    DisplayData(LoadDataResultat())
+    RawDisplayData(RawData())
 
 if __name__ == "__main__":
     main()

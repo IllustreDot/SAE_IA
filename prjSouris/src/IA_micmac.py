@@ -93,7 +93,11 @@ def process_data(input_data_file, classification_headers, path_to_output, file_n
     list_dispatcher_output = []
     classifications = get_merged_classifications(model_behaviors_to_merge, model_bahaviors_disabled)
     full_header = get_classification_header(path_to_data_classification)
-    merged_behaviors = [behavior for behaviors in model_behaviors_to_merge.values() for behavior in behaviors]
+    if model_behaviors_to_merge:
+        merged_behaviors = [behavior for behaviors in model_behaviors_to_merge.values() for behavior in behaviors]
+    else:
+        print("No behaviors to merge.")
+        merged_behaviors = []
     dispatcher_classification_order = []
     for b in full_header:
         if b in model_bahaviors_disabled:
@@ -136,6 +140,21 @@ def compare_and_plot(input_data_file, ia_output_file, classification_headers, pa
             correct_predictions.append(0)
     accuracy = np.mean(correct_predictions)
     print(f"Overall Accuracy: {accuracy * 100:.2f}%")
+    
+    if "scratching" in classification_headers:
+        scratching_index = classification_headers.index("scratching")
+        real_scratching = real_data.iloc[:, scratching_index].values
+        ia_scratching = ia_output.iloc[:, scratching_index].values
+        cm = confusion_matrix(real_scratching, ia_scratching)
+        true_positives = cm[1][1]
+        false_positives = cm[0][1]
+        false_negatives = cm[1][0]
+        scratching_accuracy = true_positives / false_positives
+        overall_scratching_accuracy = true_positives / (true_positives + false_negatives + false_positives)
+        print(f"Scratching Accuracy: {scratching_accuracy * 100:.2f}%")
+        print(f"Overall Scratching Accuracy: {overall_scratching_accuracy * 100:.2f}%")
+    else:
+        print("Error: 'scratching' not found in classification headers.")
     cm = confusion_matrix(real_data.values.argmax(axis=1), ia_output.values.argmax(axis=1))
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=classification_headers, yticklabels=classification_headers)
@@ -143,6 +162,7 @@ def compare_and_plot(input_data_file, ia_output_file, classification_headers, pa
     plt.xlabel('Predicted')
     plt.ylabel('Actual')
     plt.show()
+    
     plt.figure(figsize=(8, 6))
     plt.plot(range(len(correct_predictions)), correct_predictions, label='Accuracy per row', color='blue')
     plt.axhline(y=accuracy, color='r', linestyle='--', label=f'Overall Accuracy: {accuracy:.2f}')
@@ -171,7 +191,6 @@ def main():
     input_data_file = path_to_data + name_file
     process_data(input_data_file, classification_headers, path_to_output, name_file[:6] + file_name_data_ia_output, path_to_data_classification, model_behaviors_to_merge, model_bahaviors_disabled, dico_model, names)
     print("Processing complete. Results saved to:", path_to_output + file_name_data_ia_output)
-    
     compare_and_plot(name_file, path_to_output + name_file[:6] + file_name_data_ia_output, classification_headers, path_to_output + file_name_matches, path_to_data_classification)
 
 if __name__ == "__main__":

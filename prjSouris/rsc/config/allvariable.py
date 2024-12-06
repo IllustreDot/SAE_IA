@@ -20,6 +20,14 @@ file_name_matches = "matches.csv"
 # kind is the list of comportement of the mouse we will train the AI on
 selector = "scratching"
 
+model_behaviors_to_merge = False
+# 61% overall accuracy and best in scratching accuracy with 93% (wall rearing enabled) overall scratching accuracy 42%
+# Overall Accuracy: 58.36% Scratching Accuracy: 61.90% Overall Scratching Accuracy: 26.14% with wall rearing disabled
+
+# model_behaviors_to_merge = {
+#     'M_mouvement':['locomotion','still']} 
+# Overall Accuracy: 58.93% Scratching Accuracy: 87.64% Overall Scratching Accuracy: 39.48%
+
 # model_behaviors_to_merge = {
 #     'M_scratching':['scratching', 'hind paw licking'],
 #     'M_mouvement':['locomotion','still'],
@@ -33,25 +41,33 @@ selector = "scratching"
 #     'M_rearing':['rearing','wall rearing']}
 # 41% overall accuracy
 
-model_behaviors_to_merge = {
-    'M_scratching':['scratching','body grooming'],
-    'M_noscratching':['hind paw licking','face grooming','rearing'],
-    'M_mouvement':['locomotion','still']}
-
-# because wall rearing is desactivated
 # model_behaviors_to_merge = {
-#     'M_scratching':['scratching','body grooming'],
-#     'M_noscratching':['hind paw licking','face grooming'],
+#     'M_noscratching':['hind paw licking','face grooming','body grooming','rearing'],
 #     'M_mouvement':['locomotion','still']}
+# 53% overall accuracy
 
 # model_behaviors_to_merge = {
-#     'M_scratching':['scratching', 'hind paw licking','body grooming','face grooming'],
-#     'M_noscratching':['locomotion','still','rearing','wall rearing']}
+#     'M_toilettestand':['face grooming','rearing'],
+#     'M_toilettage':['hind paw licking','body grooming'],
+#     'M_mouvement':['locomotion','still']}
+# 59% overall accuracy Scratching Accuracy: 16.19% Overall Scratching Accuracy: 12.53%
+
+# model_behaviors_to_merge = {
+#     'M_toilettestand':['scratching','face grooming','rearing'],
+#     'M_toilettage':['hind paw licking','body grooming'],
+#     'M_mouvement':['locomotion','still']}
+#Overall Accuracy: 45.52% Scratching Accuracy: 0.00% Overall Scratching Accuracy: 0.00% , really promising but need more data and neet the validator structure 
+
+# model_behaviors_to_merge = {
+#     'M_bodyrelated':['scratching', 'hind paw licking','body grooming','face grooming'],
+#     'M_behavior':['locomotion','still','rearing','wall rearing']}
+# 15% overall accuracy 0% scratching accuracy 0% overall scratching accuracy
 
 # model_behaviors_to_merge = {
 #     'M_noscratching':['hind paw licking','body grooming','face grooming','locomotion','still','rearing','wall rearing']}
+# Overall Accuracy: 14.48% Scratching Accuracy: 11.37% Overall Scratching Accuracy: 10.06%
 
-model_bahaviors_disabled = ["jump","wall rearing"]
+model_bahaviors_disabled = ["jump"]#,"wall rearing"]
 
 selected_nb_hlayers = 5
 

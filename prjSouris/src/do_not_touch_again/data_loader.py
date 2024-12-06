@@ -77,8 +77,9 @@ def verify_logic(output_behavior, model_behaviors_to_merge=None, model_behaviors
 
 def get_merged_classifications(model_behaviors_to_merge=None, model_behaviors_disabled=None):
     columns = get_classification_header(path_to_data_classification)
-    if verify_logic(columns, model_behaviors_to_merge, model_behaviors_disabled, True) is None:
-        return None
+    if model_behaviors_to_merge:
+        if verify_logic(columns, model_behaviors_to_merge, model_behaviors_disabled, True) is None:
+            return None
     if model_behaviors_disabled:
         columns = [col for col in columns if col not in model_behaviors_disabled]
     if model_behaviors_to_merge:
@@ -123,32 +124,41 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
     no_central_classes = False
     data = {"data": None, "classification": None, "layers": None, "name": None}
     output_behavior = [col for col in get_classification_header(path_to_data_classification) if col not in model_behaviors_disabled]
-    file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior if cl not in sum(model_behaviors_to_merge.values(), [])]
+    if not model_behaviors_to_merge:
+        print("No behaviors to merge, proceeding with output_behavior only.")
+        file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior]
+    else:
+        file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior if cl not in sum(model_behaviors_to_merge.values(), [])]
     if file_sizes == []:
         no_central_classes = True
         file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior]
     min_size = min(file_sizes)
-    if verify_logic(output_behavior, model_behaviors_to_merge, model_behaviors_disabled) is None:
+    if model_behaviors_to_merge and verify_logic(output_behavior, model_behaviors_to_merge, model_behaviors_disabled) is None:
         return None
     data_file = None
     classification_file = None
     print("Minimum size for central classes:", min_size)
     for cl in output_behavior:
-        for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
-            if cl in behaviors_to_merge:
-                sub_file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in model_behaviors_to_merge[merged_behavior]if cl in output_behavior]
-                sub_min_size = min(sub_file_sizes)
-                if no_central_classes:
-                    sub_min_size = min_size
-                else:
-                    new_size_nb_behaviors = int(min_size/len(behaviors_to_merge))
-                    if new_size_nb_behaviors < sub_min_size:
-                        sub_min_size = new_size_nb_behaviors
-                print("Minimum size for central " , merged_behavior , " -> ", cl, ":", sub_min_size)
-                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=sub_min_size, random_state=13)
-                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=sub_min_size, random_state=13)
-                break
-        if cl not in sum(model_behaviors_to_merge.values(), []):
+        if model_behaviors_to_merge:
+            for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
+                if cl in behaviors_to_merge:
+                    sub_file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in behaviors_to_merge if cl in output_behavior]
+                    sub_min_size = min(sub_file_sizes)
+                    if no_central_classes:
+                        sub_min_size = min_size
+                    else:
+                        new_size_nb_behaviors = int(min_size / len(behaviors_to_merge))
+                        if new_size_nb_behaviors < sub_min_size:
+                            sub_min_size = new_size_nb_behaviors
+                    print(f"Minimum size for central {merged_behavior} -> {cl}: {sub_min_size}")
+                    data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=sub_min_size, random_state=13)
+                    classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=sub_min_size, random_state=13)
+                    break
+        if model_behaviors_to_merge:
+            if cl not in sum(model_behaviors_to_merge.values(), []):
+                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
+                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+        else:
             data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
             classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
         if model_behaviors_disabled:
@@ -161,7 +171,7 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
     if is_merged_already_done(merged_classification):
         data["layers"] = get_best_layer(merged_classification)
         if data["layers"][0] != len(data["data"].columns):
-                data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
+            data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
         else:
             print(f"Using the best layer configuration for '{merged_classification}': {data['layers']}")
     else:
@@ -173,7 +183,7 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
         for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
             file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in behaviors_to_merge]
             min_size = min(file_sizes)
-            print("Minimum size for", merged_behavior, ":", min_size)
+            print(f"Minimum size for {merged_behavior}: {min_size}")
             for cl in behaviors_to_merge:
                 data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
                 classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
@@ -194,8 +204,9 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
             data["name"] = merged_behavior
             list_data.append(prepare_data(data))
             data = {"data": None, "classification": None}
-    train_loaders, test_loaders, layer_configs , names = zip(*list_data)
+    train_loaders, test_loaders, layer_configs, names = zip(*list_data)
     return list(train_loaders), list(test_loaders), list(layer_configs), names
+
 
 def prepare_data(data):
     features = torch.tensor(data["data"].values, dtype=torch.float32)
