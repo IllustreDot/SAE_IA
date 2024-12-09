@@ -31,7 +31,7 @@ def RawData():
     data = []
     name_file = os.listdir(path_to_data)[0]
     input_data_file = path_to_data + name_file
-    data.append(pd.read_csv(input_data_file).sample(n=1000, random_state=13))
+    data.append(pd.read_csv(input_data_file))
     return data
 
 # ================================================================
@@ -68,19 +68,18 @@ def RawDisplayData(data):
             "tailbase": {"x": [], "y": []}
         }
         for i in range(1, len(cl.columns), 3):
-            part = cl.columns[i - 1]
+            part = cl.iloc[0,i]
             if part in bodypart:
-                bodypart[part]["x"] = cl.iloc[:, i].values
-                bodypart[part]["y"] = cl.iloc[:, i + 1].values
-        
+                bodypart[part]["x"] = cl.iloc[2:, i].values
+                bodypart[part]["y"] = cl.iloc[2:, i + 1].values
+
         # Visualization
         fig, ax = plt.subplots(figsize=(8, 6))
         for key, coords in bodypart.items():
-            if coords["x"] and coords["y"]:
+            if len(coords["x"]) != 0 and len(coords["y"]) != 0:
                 ax.scatter(coords["x"], coords["y"], label=key)
         plt.legend()
         plt.show()
-
 # ================================================================
 
 # main ==========================================================
