@@ -155,7 +155,10 @@ dmypy.json
 cython_debug/
 
 #Dataset
-src/Dataset/data_2classes_Mice/*
+src/Dataset/*
+
+#Model
+src/model.pth
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
