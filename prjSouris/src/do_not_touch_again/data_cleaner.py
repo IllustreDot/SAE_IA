@@ -82,14 +82,15 @@ def find_matches():
 # data transformation ============================================
 
 def translate_coordinates(data):
-    nose_x = data["nose_x"]
-    nose_y = data["nose_y"]
     translated_data = data.copy()
-    for col in data.columns:
-        if "_x" in col:
-            translated_data[col] -= nose_x
-        elif "_y" in col:
-            translated_data[col] -= nose_y
+    for index, row in data.iterrows():
+        nose_x, nose_y = row["nose_x"], row["nose_y"]
+        for i in range(0, len(row), 2):
+            part = row.index[i][:-2]
+            translated_x = row[i] - nose_x
+            translated_y = row[i+1] - nose_y
+            translated_data.loc[index, f"{part}_x"] = translated_x
+            translated_data.loc[index, f"{part}_y"] = translated_y
     return translated_data
 
 def rotate_coordinates(row):

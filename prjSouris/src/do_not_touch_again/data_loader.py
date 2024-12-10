@@ -43,9 +43,22 @@ def get_best_layer(behaviors):
     except pd.errors.ParserError as e:
         print(f"Error reading CSV file: {e}")
         return None
-    output_data["behavior"] = output_data["behavior"].apply(lambda x: tuple(ast.literal_eval(x)) if isinstance(x, str) else tuple(x) if isinstance(x, list) else x)
+    def normalize_behavior(value):
+        if isinstance(value, str):
+            try:
+                parsed_value = ast.literal_eval(value)
+                if isinstance(parsed_value, (list, tuple)):
+                    return tuple(parsed_value)
+            except (ValueError, SyntaxError):
+                pass
+        elif isinstance(value, list):
+            return tuple(value)
+        elif isinstance(value, tuple):
+            return value
+        return None
+    output_data["behavior"] = output_data["behavior"].apply(normalize_behavior)
     output_data["layer"] = output_data["layer"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
-    filtered_data = output_data[output_data["behavior"] == behaviors]
+    filtered_data = output_data[output_data["behavior"].apply(lambda x: x == behaviors)]
     if filtered_data.empty:
         print("No matching data found.")
         return None
@@ -156,9 +169,15 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
                     break
         if model_behaviors_to_merge:
             if cl not in sum(model_behaviors_to_merge.values(), []):
+                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
+                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
+                min_size = min(len(data_file), len(classification_file))
                 data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
                 classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
         else:
+            data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
+            classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
+            min_size = min(len(data_file), len(classification_file))
             data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
             classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
         if model_behaviors_disabled:
@@ -206,7 +225,6 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
             data = {"data": None, "classification": None}
     train_loaders, test_loaders, layer_configs, names = zip(*list_data)
     return list(train_loaders), list(test_loaders), list(layer_configs), names
-
 
 def prepare_data(data):
     features = torch.tensor(data["data"].values, dtype=torch.float32)

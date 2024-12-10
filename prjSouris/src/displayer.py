@@ -24,14 +24,17 @@ from allvariable import *
 def LoadDataResultat():
     data = []
     for cl in get_classification_header(path_to_data_classification):
-        data.append(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data))
+        if cl == "jump":
+            continue
+        print(cl)
+        data.append(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=1000))
     return data
 
 def RawData():
     data = []
     name_file = os.listdir(path_to_data)[0]
     input_data_file = path_to_data + name_file
-    data.append(pd.read_csv(input_data_file))
+    data.append(pd.read_csv(input_data_file, header=None))
     return data
 
 # ================================================================
@@ -68,8 +71,10 @@ def RawDisplayData(data):
             "tailbase": []
         }
         for i in range(1, len(cl.columns), 3):
-            bodypart[cl.iloc[0,i]] = ([cl.iloc[2:, i].values, cl.iloc[2:, i + 1].values])
-
+            part = cl.iloc[1,i]
+            print(part)
+            bodypart[part] = ([cl.iloc[2:, i], cl.iloc[2:, i + 1]])
+        print(bodypart)
         # Visualization
         fig, ax = plt.subplots(figsize=(8, 6))
         for key, (x, y) in bodypart.items():
@@ -81,7 +86,8 @@ def RawDisplayData(data):
 # main ==========================================================
 
 def main():
-    RawDisplayData(RawData())
+    DisplayData(LoadDataResultat())
+    #RawDisplayData(RawData())
 
 if __name__ == "__main__":
     main()

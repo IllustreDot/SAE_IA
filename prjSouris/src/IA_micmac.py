@@ -23,7 +23,7 @@ from sklearn.metrics import confusion_matrix
 sys.path.append("../rsc/config")
 from allvariable import *
 from do_not_touch_again.nn_model import nn_run
-from do_not_touch_again.data_cleaner import get_single_data
+from do_not_touch_again.data_cleaner import get_single_data, rotate_coordinates, translate_coordinates
 from do_not_touch_again.data_loader import get_best_layer, get_classification_header, get_merged_classifications, load_data
 
 # data related ==================================================
@@ -73,8 +73,23 @@ def dispatcher(data_row, central_model, list_model, names, model_behaviors_to_me
             decompressed_output[central_output] = 1
     else:
         decompressed_output[central_output] = 1
-    print("decompressed_output : ",decompressed_output)
     return tuple(decompressed_output)
+
+def validator(data_row, central_model, list_model, names, model_behaviors_to_merge, model_bahaviors_disabled, classifications, full_header, merged_behaviors):
+    run_validator_cycle = 3
+    num_classes = len(full_header)
+    output_sums = [0] * num_classes
+    for _ in range(run_validator_cycle):
+        output = dispatcher(data_row, central_model, list_model, names, model_behaviors_to_merge, model_bahaviors_disabled, classifications, full_header, merged_behaviors)
+        output_sums = [sum(x) for x in zip(output_sums, output)]
+    while output_sums.count(max(output_sums)) > 1:
+        output = dispatcher(data_row, central_model, list_model, names, model_behaviors_to_merge, model_bahaviors_disabled, classifications, full_header, merged_behaviors)
+        output_sums = [sum(x) for x in zip(output_sums, output)]
+    final_output = [0] * num_classes
+    max_index = output_sums.index(max(output_sums))
+    final_output[max_index] = 1
+    print("Final Output : ", final_output)
+    return final_output
 
 def reorder_and_include_disabled(current_output, current_order, desired_order):
     behavior_to_index = {behavior: i for i, behavior in enumerate(current_order)}
@@ -106,8 +121,10 @@ def process_data(input_data_file, classification_headers, path_to_output, file_n
             dispatcher_classification_order.append(b)
     for behavior in merged_behaviors + model_bahaviors_disabled:
         dispatcher_classification_order.append(behavior)
+    data = translate_coordinates(data)
     for index, row in data.iterrows():
-        dispatcher_output = dispatcher(row, dico_model["central"],[dico_model[name] for name in names if name != "central"],names,model_behaviors_to_merge, model_bahaviors_disabled,classifications,full_header, merged_behaviors)
+        row = rotate_coordinates(row)
+        dispatcher_output = validator(row, dico_model["central"],[dico_model[name] for name in names if name != "central"],names,model_behaviors_to_merge, model_bahaviors_disabled,classifications,full_header, merged_behaviors)
         list_dispatcher_output.append(dispatcher_output)
     reordered_output = reorder_and_include_disabled(list_dispatcher_output, dispatcher_classification_order,classification_headers)
     with open(path_to_output + file_name_data_ia_output, "a") as f:

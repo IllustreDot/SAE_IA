@@ -25,8 +25,10 @@ model_behaviors_to_merge = False
 # Overall Accuracy: 58.36% Scratching Accuracy: 61.90% Overall Scratching Accuracy: 26.14% with wall rearing disabled
 
 # model_behaviors_to_merge = {
-#     'M_mouvement':['locomotion','still']} 
-# Overall Accuracy: 58.93% Scratching Accuracy: 87.64% Overall Scratching Accuracy: 39.48%
+#   'M_mouvement':['locomotion','still']} 
+#Overall Accuracy: 58.93% Scratching Accuracy: 87.64% Overall Scratching Accuracy: 39.48%
+# with validator (3) : Overall Accuracy: 55.77% Scratching Accuracy: 95.06% Overall Scratching Accuracy: 43.18%
+# with validator (6) : Overall Accuracy: 58.33% Scratching Accuracy: 77.78% Overall Scratching Accuracy: 36.47%
 
 # model_behaviors_to_merge = {
 #     'M_scratching':['scratching', 'hind paw licking'],
@@ -50,7 +52,9 @@ model_behaviors_to_merge = False
 #     'M_toilettestand':['face grooming','rearing'],
 #     'M_toilettage':['hind paw licking','body grooming'],
 #     'M_mouvement':['locomotion','still']}
-# 59% overall accuracy Scratching Accuracy: 16.19% Overall Scratching Accuracy: 12.53%
+#59% overall accuracy Scratching Accuracy: 16.19% Overall Scratching Accuracy: 12.53%
+# with validator (3) :
+# with validator (6) : Overall Accuracy: 57.67% Scratching Accuracy: 83.08% Overall Scratching Accuracy: 37.50%
 
 # model_behaviors_to_merge = {
 #     'M_toilettestand':['scratching','face grooming','rearing'],
@@ -67,7 +71,7 @@ model_behaviors_to_merge = False
 #     'M_noscratching':['hind paw licking','body grooming','face grooming','locomotion','still','rearing','wall rearing']}
 # Overall Accuracy: 14.48% Scratching Accuracy: 11.37% Overall Scratching Accuracy: 10.06%
 
-model_bahaviors_disabled = ["jump"]#,"wall rearing"]
+model_bahaviors_disabled = ["jump","wall rearing"]
 
 selected_nb_hlayers = 5
 
