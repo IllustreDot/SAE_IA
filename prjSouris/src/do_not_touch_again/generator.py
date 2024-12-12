@@ -31,3 +31,6 @@ def layer_finder(input_size, output_size, hidden_layer_size):
         layer_config[-1] = output_size
     print("Generating layer configurations")
     return generate_layer_configurations(layer_config, output_size)
+
+def behavior_pairs(behaviors):
+    return list(combinations(behaviors, 2))

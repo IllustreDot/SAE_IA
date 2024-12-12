@@ -235,5 +235,23 @@ def prepare_data(data):
 def load_data(model_behaviors_to_merge=None, model_bahaviors_disabled=None):
     return load_data_all(model_behaviors_to_merge, model_bahaviors_disabled)
 
+def load_single_data(behavior):
+    data = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)
+    classification = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification)
+    size = min(len(data), len(classification))
+    data = data.sample(n=size, random_state=13)
+    classification = classification.sample(n=size, random_state=13)
+    return prepare_data(data)
 
+def load_pair_data(pair):
+    min_size_data = min([len(pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)) for behavior in pair])
+    min_data_classification = min([len(pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification)) for behavior in pair])
+    min_size = min(min_size_data, min_data_classification)
+    data = {"data": None, "classification": None}
+    for behavior in pair:
+        data_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data).sample(n=min_size, random_state=13)
+        classification_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+        data["data"] = pd.concat([data["data"], data_file], ignore_index=True) if data["data"] is not None else data_file
+        data["classification"] = pd.concat([data["classification"], classification_file], ignore_index=True) if data["classification"] is not None else classification_file
+    return prepare_data(data)
 

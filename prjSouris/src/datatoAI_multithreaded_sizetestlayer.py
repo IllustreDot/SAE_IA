@@ -23,9 +23,9 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader, TensorDataset
 
-from prjSouris.src.data_loader import remove_behavior_done
-from prjSouris.src.datatoAI import LoadData
-from prjSouris.src.nn_model import nn_run
+from do_not_touch_again.data_loader import load_data
+from do_not_touch_again.generator import find_layer_configs
+from do_not_touch_again.nn_model import nn_run
 
 torch.backends.cudnn.benchmark = True
 
@@ -103,6 +103,8 @@ def run_parallel_behavior_training(behavior_pairs, layer_configs, choose_gpu=Fal
             cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs)
         with open(path_to_config + dile_name_config_done, "a") as f:
             f.write(f"\"{behavior}\"\n")
+            
+def remove_behavior_done(selector):
 
 # ================================================================
 
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     print("Starting")
     create_output_file(path_to_output, file_name_data_output)
     behaviorPairs = remove_behavior_done(selector)
-    layer_configs = generate_layer_configurations(hl_nb_dict_of_dict)
-    run_parallel_behavior_training(behaviorPairs, layer_configs, choose_gpu)
+    layer_configs = find_layer_configs(12, len(behaviorPairs[0]), selected_nb_hlayers)
+    run_parallel_behavior_training(behaviorPairs, layer_configs)
 
 # ================================================================"
