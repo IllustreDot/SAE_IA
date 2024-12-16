@@ -18,7 +18,9 @@ import os
 import sys
 
 import torch
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
 
 sys.path.append("../rsc/config")
 from allvariable import *
@@ -46,6 +48,59 @@ def train_behavior(layer_configs, behavior, train_loader, test_loader, device, l
         return nn_run(get_best_layer(behavior), behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
     else:
         return nn_run(layer_configs, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
+
+def train_behavior_mlp(layer_configs, train_loader, test_loader, learning_rate_init, alpha, max_iter):
+    results = []
+    def train_single_config(config):
+        model = MLPClassifier( hidden_layer_sizes=config, activation="relu", solver="adam", alpha=alpha, learning_rate_init=learning_rate_init, max_iter=max_iter, random_state=42, verbose=False)
+        X_train, y_train = train_loader
+        X_test, y_test = test_loader
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        return {
+            "config": config,
+            "model": model,
+            "accuracy": acc,
+            "confusion_matrix": confusion_matrix(y_test, y_pred)
+        }
+    if isinstance(layer_configs, list):
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            results = list(executor.map(train_single_config, layer_configs))
+    else:
+        results = [train_single_config(layer_configs)]
+
+    best_result = max(results, key=lambda x: x["accuracy"])
+    print(f"Best configuration: {best_result['config']} with accuracy: {best_result['accuracy']}")
+    return best_result["model"]
+
+# Redesigned RandomForestClassifier Logic
+def train_behavior_random_forest(configs, train_loader, test_loader):
+    results = []
+    def train_single_config(config):
+        n_estimators, max_depth, random_state = config
+        model = RandomForestClassifier( n_estimators=n_estimators, max_depth=max_depth, random_state=random_state)
+        X_train, y_train = train_loader
+        X_test, y_test = test_loader
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        return {
+            "config": config,
+            "model": model,
+            "accuracy": acc,
+            "confusion_matrix": confusion_matrix(y_test, y_pred)
+        }
+
+    if isinstance(configs, list):
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            results = list(executor.map(train_single_config, configs))
+    else:
+        results = [train_single_config(configs)]
+
+    best_result = max(results, key=lambda x: x["accuracy"])
+    print(f"Best configuration: {best_result['config']} with accuracy: {best_result['accuracy']}")
+    return best_result["model"]
 
 def dispatcher(data_row, central_model, list_model, names, model_behaviors_to_merge, model_bahaviors_disabled, classifications, full_header, merged_behaviors):
     data_tensor = torch.tensor(data_row.values, dtype=torch.float32).unsqueeze(0)
@@ -164,12 +219,12 @@ def compare_and_plot(input_data_file, ia_output_file, classification_headers, pa
         ia_scratching = ia_output.iloc[:, scratching_index].values
         cm = confusion_matrix(real_scratching, ia_scratching)
         true_positives = cm[1][1]
-        false_positives = cm[0][1]
-        false_negatives = cm[1][0]
-        scratching_accuracy = true_positives / false_positives
-        overall_scratching_accuracy = true_positives / (true_positives + false_negatives + false_positives)
-        print(f"Scratching Accuracy: {scratching_accuracy * 100:.2f}%")
-        print(f"Overall Scratching Accuracy: {overall_scratching_accuracy * 100:.2f}%")
+        false_positives = cm[1][0]
+        false_negatives = cm[0][1]
+        scratching_accuracy = (true_positives / (false_positives + true_positives)) * 100
+        overall_scratching_accuracy = (true_positives / (true_positives + false_negatives + false_positives)) * 100
+        print(f"Scratching Accuracy: {scratching_accuracy:.2f}%")
+        print(f"Overall Scratching Accuracy: {overall_scratching_accuracy:.2f}%")
     else:
         print("Error: 'scratching' not found in classification headers.")
     cm = confusion_matrix(real_data.values.argmax(axis=1), ia_output.values.argmax(axis=1))

@@ -17,14 +17,9 @@ import os
 from sklearn.metrics import confusion_matrix
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.multiprocessing as mp
-from torch.utils.data import DataLoader, TensorDataset
 
-from do_not_touch_again.data_loader import load_data
-from do_not_touch_again.generator import find_layer_configs
+from do_not_touch_again.data_loader import get_classification_header, load_pair_data
+from do_not_touch_again.generator import behavior_pairs, layer_finder
 from do_not_touch_again.nn_model import nn_run
 
 torch.backends.cudnn.benchmark = True
@@ -76,35 +71,53 @@ def create_output_file(path_to_output, file_name_data_output):
 
 # multithreading =================================================
 
-def cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs):
-    print("Using CPU")
-    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+def train_behavior(layer_configs, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output):
+    print(f"Training behavior {behavior} using device: {device}")
+    if device == torch.device("cpu"):
+        print("Starting multiprocessing on CPU")
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+            futures = []
+            for config in layer_configs:
+                futures.append(executor.submit( nn_run, config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output))
+            for future in futures:
+                future.result() 
+    else:
+        print("Starting sequential processing on GPU")
         for config in layer_configs:
-            executor.submit(nn_run, config, behavior, train_loader, test_loader, torch.device('cpu'))
+            nn_run( config, behavior, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
+    with open(path_to_config + dile_name_config_done, "a") as f:
+        f.write(f"\"{behavior}\"\n")
 
-def gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_loader, devices):
-    print("Using GPU")
-    for config in layer_configs:
-        nn_run(config, behavior, train_loader, test_loader, devices[0])
-    # with mp.Pool(processes=len(devices)) as pool:
-    #     pool.starmap(nnRun, [(config, behavior, train_loader, test_loader, device) for config, device in zip(layer_configs, devices)])
+def run_parallel_behavior_training(behavior_pairs, layer_configs):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    for behavior_pair in behavior_pairs:
+        train_loader, test_loader = load_pair_data(behavior_pair)
+        print(f"Training for {behavior_pair}")
+        train_behavior( layer_configs, behavior_pair, train_loader, test_loader, device, learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
 
-def run_parallel_behavior_training(behavior_pairs, layer_configs, choose_gpu=False):
-    for behavior in behavior_pairs:
-        train_loader, test_loader = LoadData(behavior)
-        print(f"Training for {behavior}")
-        if choose_gpu:
-            num_gpus = torch.cuda.device_count()
-            print(f"Using {num_gpus} GPUs.")
-            devices = [torch.device(f'cuda:{i}') for i in range(num_gpus)]
-            print(devices)
-            gpu_train_with_multiprocessing(behavior, layer_configs, train_loader, test_loader, devices)
-        else:
-            cpu_train_single_behavior(behavior, train_loader, test_loader, layer_configs)
-        with open(path_to_config + dile_name_config_done, "a") as f:
-            f.write(f"\"{behavior}\"\n")
-            
-def remove_behavior_done(selector):
+def remove_behavior_done(gen_behavior_pairs):
+    print("Loading done behaviors...")
+    try:
+        done_file = pd.read_csv(path_to_config + dile_name_config_done)
+    except FileNotFoundError:
+        print("Done file not found. Proceeding without exclusions.")
+        done = set()
+    except Exception as e:
+        print(f"Error reading the done file: {e}")
+        return gen_behavior_pairs
+    else:
+        done = set()
+        for item in done_file["behavior"]:
+            try:
+                parsed_item = ast.literal_eval(item)
+                if isinstance(parsed_item, (list, tuple)) and tuple(sorted(parsed_item)) not in done:
+                    done.add(tuple(sorted(parsed_item)))
+            except Exception as e:
+                print(f"Failed to parse item: {item}, Error: {e}")
+                continue
+    unique_gen_pairs = {tuple(sorted(behavior)) for behavior in gen_behavior_pairs}
+    remaining_behaviors = unique_gen_pairs - done
+    return list(remaining_behaviors)
 
 # ================================================================
 
@@ -113,8 +126,9 @@ def remove_behavior_done(selector):
 if __name__ == "__main__":
     print("Starting")
     create_output_file(path_to_output, file_name_data_output)
-    behaviorPairs = remove_behavior_done(selector)
-    layer_configs = find_layer_configs(12, len(behaviorPairs[0]), selected_nb_hlayers)
+    gen_behavior_pairs = behavior_pairs(get_classification_header(path_to_data_classification))
+    behaviorPairs = remove_behavior_done(gen_behavior_pairs)
+    layer_configs = layer_finder(12, len(behaviorPairs[0]), selected_nb_hlayers)
     run_parallel_behavior_training(behaviorPairs, layer_configs)
 
 # ================================================================"

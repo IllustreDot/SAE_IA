@@ -71,16 +71,21 @@ model_behaviors_to_merge = False
 #     'M_noscratching':['hind paw licking','body grooming','face grooming','locomotion','still','rearing','wall rearing']}
 # Overall Accuracy: 14.48% Scratching Accuracy: 11.37% Overall Scratching Accuracy: 10.06%
 
-model_bahaviors_disabled = ["jump","wall rearing"]
+model_bahaviors_disabled = ["jump"]#,"wall rearing"]
 
 selected_nb_hlayers = 5
 
 learning_rate_init_number = 0.001
 alpha_number = 1e-4
 max_iter_number = 100
+solvertype = 'sgd'
+activation_function = 'relu'
 
 
 
 process_data = False
 # if you want to rewrite the matches file or not
 save_matches = False
+
+
+# for NN resultat Overall Accuracy: 52.33% Scratching Accuracy: 35.44% Overall Scratching Accuracy: 34.89%

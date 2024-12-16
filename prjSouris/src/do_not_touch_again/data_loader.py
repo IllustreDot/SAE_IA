@@ -230,27 +230,31 @@ def prepare_data(data):
     features = torch.tensor(data["data"].values, dtype=torch.float32)
     labels = torch.tensor(np.argmax(data["classification"].values, axis=1), dtype=torch.long)
     X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.3, random_state=42)
+    if data["layers"] == None and data["name"] == None : 
+        return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False))
     return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False), data["layers"], data["name"])
 
 def load_data(model_behaviors_to_merge=None, model_bahaviors_disabled=None):
     return load_data_all(model_behaviors_to_merge, model_bahaviors_disabled)
 
 def load_single_data(behavior):
-    data = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)
-    classification = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification)
-    size = min(len(data), len(classification))
-    data = data.sample(n=size, random_state=13)
-    classification = classification.sample(n=size, random_state=13)
+    data_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)
+    classification_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification)
+    size = min(len(data_file), len(classification_file))
+    data = {"data": None, "classification": None, "layers": None, "name": None}
+    data["data"] = data_file.sample(n=size, random_state=13)
+    data["classification"] = classification_file.sample(n=size, random_state=13)
     return prepare_data(data)
 
 def load_pair_data(pair):
     min_size_data = min([len(pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)) for behavior in pair])
     min_data_classification = min([len(pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification)) for behavior in pair])
     min_size = min(min_size_data, min_data_classification)
-    data = {"data": None, "classification": None}
+    data = {"data": None, "classification": None, "layers": None, "name": None}
     for behavior in pair:
         data_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data).sample(n=min_size, random_state=13)
         classification_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+        classification_file = classification_file.drop(columns=[col for col in classification_file.columns if col not in pair])
         data["data"] = pd.concat([data["data"], data_file], ignore_index=True) if data["data"] is not None else data_file
         data["classification"] = pd.concat([data["classification"], classification_file], ignore_index=True) if data["classification"] is not None else classification_file
     return prepare_data(data)
