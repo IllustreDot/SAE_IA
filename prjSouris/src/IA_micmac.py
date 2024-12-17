@@ -26,7 +26,7 @@ sys.path.append("../rsc/config")
 from allvariable import *
 from do_not_touch_again.nn_model import nn_run
 from do_not_touch_again.data_cleaner import get_single_data, rotate_coordinates, translate_coordinates
-from do_not_touch_again.data_loader import get_best_layer, get_classification_header, get_merged_classifications, load_data
+from do_not_touch_again.data_loader import get_best_layer, get_classification_header, get_merged_classifications, load_data, load_data_no_prepare
 
 # data related ==================================================
 
@@ -245,7 +245,8 @@ def compare_and_plot(input_data_file, ia_output_file, classification_headers, pa
     plt.show()
 
 def main():
-    list_train_loader, list_test_loader , list_layer_config, names = load_data(model_behaviors_to_merge, model_bahaviors_disabled)
+    list_train_loader, list_test_loader , list_layer_config, names = load_data_no_prepare(model_behaviors_to_merge, model_bahaviors_disabled)
+    print(list_train_loader, list_test_loader, list_layer_config, names)
     dico_model = {}
     for name in names:
         dico_model[name] = [None]
@@ -256,7 +257,7 @@ def main():
             else:
                 sub_behaviors = model_behaviors_to_merge.get(name, [])
             print("Training model for:", sub_behaviors)
-            dico_model[name] = train_behavior(layer_configs, sub_behaviors, train_loader, test_loader, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), learning_rate_init_number, alpha_number, max_iter_number, path_to_output, file_name_data_output)
+            dico_model[name] = train_behavior_mlp(layer_configs, train_loader, test_loader, learning_rate_init_number, alpha_number, max_iter_number)
 
     classification_headers = get_classification_header(path_to_data_classification)
     name_file = os.listdir(path_to_data)[0]

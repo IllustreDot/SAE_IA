@@ -98,12 +98,12 @@ def get_merged_classifications(model_behaviors_to_merge=None, model_behaviors_di
     if model_behaviors_to_merge:
         for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
             relevant_columns = [col for col in behaviors_to_merge if col in columns]
-            if relevant_columns: 
+            if relevant_columns:
                 columns.append(merged_behavior)
                 for col in relevant_columns:
                     columns.remove(col)
     return columns
-    
+
 def is_merged_already_done(behaviors):
     print("Checking if behavior is already done...")
     done_file = pd.read_csv(path_to_config + dile_name_config_done)
@@ -127,7 +127,7 @@ def merge_behavior_classes(classification_file, model_behaviors_to_merge):
     merged_data = classification_file.copy()
     for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
         relevant_columns = [col for col in behaviors_to_merge if col in classification_file.columns]
-        if relevant_columns: 
+        if relevant_columns:
             merged_data[merged_behavior] = merged_data[relevant_columns].apply(lambda row: 1 if row.any() else 0, axis=1)
             merged_data.drop(columns=relevant_columns, inplace=True)
     return merged_data
@@ -226,16 +226,113 @@ def load_data_all(model_behaviors_to_merge=None, model_behaviors_disabled=None):
     train_loaders, test_loaders, layer_configs, names = zip(*list_data)
     return list(train_loaders), list(test_loaders), list(layer_configs), names
 
+def load_data_all_no_prepare(model_behaviors_to_merge=None, model_behaviors_disabled=None):
+    list_data = []
+    no_central_classes = False
+    data = {"data": None, "classification": None, "layers": None, "name": None}
+    output_behavior = [col for col in get_classification_header(path_to_data_classification) if col not in model_behaviors_disabled]
+    if not model_behaviors_to_merge:
+        print("No behaviors to merge, proceeding with output_behavior only.")
+        file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior]
+    else:
+        file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior if cl not in sum(model_behaviors_to_merge.values(), [])]
+    if file_sizes == []:
+        no_central_classes = True
+        file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in output_behavior]
+    min_size = min(file_sizes)
+    if model_behaviors_to_merge and verify_logic(output_behavior, model_behaviors_to_merge, model_behaviors_disabled) is None:
+        return None
+    data_file = None
+    classification_file = None
+    print("Minimum size for central classes:", min_size)
+    for cl in output_behavior:
+        if model_behaviors_to_merge:
+            for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
+                if cl in behaviors_to_merge:
+                    sub_file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in behaviors_to_merge if cl in output_behavior]
+                    sub_min_size = min(sub_file_sizes)
+                    if no_central_classes:
+                        sub_min_size = min_size
+                    else:
+                        new_size_nb_behaviors = int(min_size / len(behaviors_to_merge))
+                        if new_size_nb_behaviors < sub_min_size:
+                            sub_min_size = new_size_nb_behaviors
+                    print(f"Minimum size for central {merged_behavior} -> {cl}: {sub_min_size}")
+                    data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=sub_min_size, random_state=13)
+                    classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=sub_min_size, random_state=13)
+                    break
+        if model_behaviors_to_merge:
+            if cl not in sum(model_behaviors_to_merge.values(), []):
+                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
+                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
+                min_size = min(len(data_file), len(classification_file))
+                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
+                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+        else:
+            data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)
+            classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification)
+            min_size = min(len(data_file), len(classification_file))
+            data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
+            classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+        if model_behaviors_disabled:
+            classification_file = classification_file.drop(columns=[col for col in model_behaviors_disabled if col in classification_file.columns])
+        if model_behaviors_to_merge:
+            classification_file = merge_behavior_classes(classification_file, model_behaviors_to_merge)
+        data["data"] = pd.concat([data["data"], data_file], ignore_index=True) if data["data"] is not None else data_file
+        data["classification"] = pd.concat([data["classification"], classification_file], ignore_index=True) if data["classification"] is not None else classification_file
+    merged_classification = get_merged_classifications(model_behaviors_to_merge, model_behaviors_disabled)
+    if is_merged_already_done(merged_classification):
+        data["layers"] = get_best_layer(merged_classification)
+        if data["layers"][0] != len(data["data"].columns):
+            data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
+        else:
+            print(f"Using the best layer configuration for '{merged_classification}': {data['layers']}")
+    else:
+        data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
+    data["name"] = "central"
+    list_data.append(data)
+    data = {"data": None, "classification": None}
+    if model_behaviors_to_merge:
+        for merged_behavior, behaviors_to_merge in model_behaviors_to_merge.items():
+            file_sizes = [len(pd.read_csv(path_to_data_clean + cl + "/" + file_name_data)) for cl in behaviors_to_merge]
+            min_size = min(file_sizes)
+            print(f"Minimum size for {merged_behavior}: {min_size}")
+            for cl in behaviors_to_merge:
+                data_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data).sample(n=min_size, random_state=13)
+                classification_file = pd.read_csv(path_to_data_clean + cl + "/" + file_name_data_classification).sample(n=min_size, random_state=13)
+                if model_behaviors_disabled:
+                    classification_file = classification_file.drop(columns=[col for col in model_behaviors_disabled if col in classification_file.columns])
+                columns_to_keep = [col for col in classification_file.columns if col in behaviors_to_merge]
+                classification_file = classification_file[columns_to_keep]
+                data["data"] = pd.concat([data["data"], data_file], ignore_index=True) if data["data"] is not None else data_file
+                data["classification"] = pd.concat([data["classification"], classification_file], ignore_index=True) if data["classification"] is not None else classification_file
+            if is_merged_already_done(behaviors_to_merge):
+                data["layers"] = get_best_layer(behaviors_to_merge)
+                if data["layers"][0] != len(data["data"].columns):
+                    data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
+                else:
+                    print(f"Using the best layer configuration for '{behaviors_to_merge}': {data['layers']}")
+            else:
+                data["layers"] = layer_finder(len(data["data"].columns), len(classification_file.columns), selected_nb_hlayers)
+            data["name"] = merged_behavior
+            list_data.append(data)
+            data = {"data": None, "classification": None}
+    train_loaders, test_loaders, layer_configs, names = zip(*list_data)
+    return list(train_loaders), list(test_loaders), list(layer_configs), names
+
 def prepare_data(data):
     features = torch.tensor(data["data"].values, dtype=torch.float32)
     labels = torch.tensor(np.argmax(data["classification"].values, axis=1), dtype=torch.long)
     X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.3, random_state=42)
-    if data["layers"] == None and data["name"] == None : 
-        return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False))
-    return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False), data["layers"], data["name"])
+    if data["layers"] == None and data["name"] == None :
+        return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True, num_workers=4), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False, num_workers=4))
+    return (DataLoader(TensorDataset(X_train, y_train), batch_size=128, shuffle=True, num_workers=4), DataLoader(TensorDataset(X_test, y_test), batch_size=128, shuffle=False, num_workers=4), data["layers"], data["name"])
 
 def load_data(model_behaviors_to_merge=None, model_bahaviors_disabled=None):
     return load_data_all(model_behaviors_to_merge, model_bahaviors_disabled)
+
+def load_data_no_prepare(model_behaviors_to_merge=None, model_behaviors_disabled=None):
+    return load_data_all_no_prepare(model_behaviors_to_merge, model_behaviors_disabled)
 
 def load_single_data(behavior):
     data_file = pd.read_csv(path_to_data_clean + behavior + "/" + file_name_data)
@@ -258,4 +355,3 @@ def load_pair_data(pair):
         data["data"] = pd.concat([data["data"], data_file], ignore_index=True) if data["data"] is not None else data_file
         data["classification"] = pd.concat([data["classification"], classification_file], ignore_index=True) if data["classification"] is not None else classification_file
     return prepare_data(data)
-
