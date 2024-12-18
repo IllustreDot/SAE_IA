@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import json
 from model import ConvMLP
 
-# Dataset Preparation
+# Dataset Preparation, set the data to the correct size and normalize it
 transform = transforms.Compose([
     transforms.Grayscale(num_output_channels=1),
     transforms.Resize((360, 354)),
@@ -64,7 +64,7 @@ print(f"Testing dataset size: {len(test_dataset)}")
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4, pin_memory=True)
 test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=4, pin_memory=True)
 
-
+#Params of the model, be aware of the change you make here
 params = {
     'input_channels': 1,  # Grayscaled images
     'conv1_out_channels': 32,  # First convolution output channels
